@@ -82,6 +82,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!flutter_ui/lib/
 lib64/
 parts/
 sdist/
