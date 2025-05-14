@@ -4,13 +4,22 @@ A new Flutter project.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+```
+npm install -g firebase-tools
+firebase login
+gem install xcodeproj
+```
 
-A few resources to get you started if this is your first Flutter project:
+To open the Command Palette, press Command + Shift + P.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+In the Command Palette, type flutter.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Select Flutter: New Project.
+
+VS Code prompts you to locate the Flutter SDK on your computer.
+
+If you have the Flutter SDK installed, click Locate SDK.
+
+If you do not have the Flutter SDK installed, click Download SDK.
+
+This option sends you the Flutter install page if you have not installed Git as directed in the development tools prerequisites.

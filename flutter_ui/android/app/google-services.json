@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "47665095629",
+    "project_id": "chat-mbti-458210",
+    "storage_bucket": "chat-mbti-458210.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47665095629:android:bb61ad38c2a78063d05a84",
+        "android_client_info": {
+          "package_name": "com.example.flutter_ui"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "47665095629-a68usg72uo8unm7bugcj31mmsnvc1roi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlWNOOorDqzSqXizA0SMIixyrURQKJpZg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "47665095629-a68usg72uo8unm7bugcj31mmsnvc1roi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "47665095629-fvktdn96mblt00kc0j9527mk6uuu9ku3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.flutterUi"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
