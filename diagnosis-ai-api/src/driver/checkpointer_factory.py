@@ -2,12 +2,12 @@ import os
 import socket
 from typing import Union
 from psycopg_pool import ConnectionPool
-from langgraph.checkpoint.postgres import PostgresSaver, PickleCheckpointSerializer
+from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.memory import MemorySaver
 from contextlib import _GeneratorContextManager
 
 
-def create_checkpointer() -> _GeneratorContextManager[Union[PostgresSaver, MemorySaver]]:
+def create_checkpointer() -> Union[_GeneratorContextManager[PostgresSaver], MemorySaver]:
     """DB_CONNECTION_STRING から PostgresSaver を生成。
     初回実行時は自動でテーブルを作成します。"""
     try:
