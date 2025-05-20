@@ -32,9 +32,7 @@ async def generate_mbti_question(request: UserRequest):
 
         # Convert request messages
         messages = request.messages
-        with create_checkpointer() as checkpointer:
-            checkpointer.setup()
-
+        if isinstance(checkpointer, MemoryServer):
             graph_with_memory = graph_builder.compile(checkpointer=checkpointer)
             if thread_id:
                 # Continue from previous state
@@ -52,6 +50,29 @@ async def generate_mbti_question(request: UserRequest):
                     config={"configurable": {"thread_id": thread_id}},
                 )
             return {"question": result["messages"][-1]["content"]}
+        else:
+            with create_checkpointer() as checkpointer:
+                # if first time, create table
+                if checkpointer.get() is None:
+                    checkpointer.setup()
+
+                graph_with_memory = graph_builder.compile(checkpointer=checkpointer)
+                if thread_id:
+                    # Continue from previous state
+                    result = graph_with_memory.invoke(
+                        {"messages": messages, "options": []},
+                        config={"configurable": {"thread_id": thread_id}},
+                    )
+                else:
+                    # Create new thread
+                    thread_id = f"thread_{user_id}_{int(time.time())}"
+                    thread_states[user_id] = thread_id
+
+                    result = graph_with_memory.invoke(
+                        {"messages": messages, "options": []},
+                        config={"configurable": {"thread_id": thread_id}},
+                    )
+                return {"question": result["messages"][-1]["content"]}
 
     except Exception as e:
         logger.debug(e.__str__())

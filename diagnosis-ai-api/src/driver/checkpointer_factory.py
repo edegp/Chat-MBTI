@@ -1,7 +1,8 @@
 import os
 import socket
 from typing import Union
-from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
+from langgraph.checkpoint.postgres import PostgresSaver, PickleCheckpointSerializer
 from langgraph.checkpoint.memory import MemorySaver
 from contextlib import _GeneratorContextManager
 
@@ -23,8 +24,6 @@ def create_checkpointer() -> _GeneratorContextManager[Union[PostgresSaver, Memor
         db_uri = (
             f"postgresql://postgres:postgres@{host}:5432/diagnosis_ai?sslmode=disable"
         )
-        # conn = postgres.connect(db_uri)
-
         print(f"Connecting to PostgreSQL at: {db_uri}")
         return PostgresSaver.from_conn_string(db_uri)
     except Exception as e:
