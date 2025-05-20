@@ -31,7 +31,7 @@ async def generate_mbti_question(request: UserRequest):
         thread_id = thread_states.get(user_id)
 
         # Convert request messages
-        messages = [{"role": "user", "content": request.message}]
+        messages = request.messages
         with create_checkpointer() as checkpointer:
             checkpointer.setup()
 

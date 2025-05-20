@@ -10,7 +10,7 @@ class Message(BaseModel):
 
 class UserRequest(BaseModel):
     user_id: uuid.UUID
-    message: str
+    messages: List[Message]
 
 
 class OptionsRequest(BaseModel):
