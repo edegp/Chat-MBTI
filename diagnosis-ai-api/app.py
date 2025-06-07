@@ -1,25 +1,17 @@
 from fastapi import FastAPI
-from src.controller import generate_qa
-from src.usecase.generate_qa import llm
+from src.controller.mbti_routes import router as mbti_router
 
 # Add configuration for CORS if needed
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="MBTI Chatbot API")
-app.include_router(generate_qa.router)
+app = FastAPI(
+    title="MBTI Chatbot API",
+    description="AI-powered MBTI personality assessment chatbot using LangGraph",
+    version="1.0.0",
+)
 
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Verify the API is properly configured on startup"""
-    try:
-        # Test the LLM with a simple prompt
-        test_response = llm.invoke("Hello")
-        print("LLM initialized successfully")
-    except Exception as e:
-        print(f"Error initializing LLM: {e}")
-        raise
+# Include new architecture routes
+app.include_router(mbti_router)
 
 
 app.add_middleware(
@@ -32,5 +24,7 @@ app.add_middleware(
 
 if __name__ == "__main__":
     import uvicorn
+    import os
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

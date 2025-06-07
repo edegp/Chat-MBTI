@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_ui/firebase_options.dart';
 
 import 'email_verification_page.dart';
+import 'chat_page_friendly.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'home.dart';
@@ -37,7 +38,7 @@ class MyApp extends StatelessWidget {
       initialRoute: "/",
       routes: {
         '/': (ctx) => const LoginPage(),
-        // '/chat': (ctx) => ChatPage(),
+        '/chat': (ctx) => const FriendlyChatPage(),
         // '/resetpassword': (ctx) => const ResetPasswordPage(),
       },
     );

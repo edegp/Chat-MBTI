@@ -8,7 +8,7 @@ def _combine_options_list(options_list: list[str]) -> str:
     return options_str
 
 
-def _organaize_chat_history(raw_messages):
+def _organize_chat_history(raw_messages):
     """Formats chat history into a string"""
     messages = "\n".join(f"{msg['role']}: {msg['content']}" for msg in raw_messages)
     return messages

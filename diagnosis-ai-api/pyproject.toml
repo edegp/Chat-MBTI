@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.12",
+    "firebase-admin>=6.8.0",
     "google-generativeai>=0.8.5",
     "langchain-google-genai>=2.0.10",
     "langchain[google-genai]>=0.3.25",
@@ -14,7 +15,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0.21",
     "langsmith>=0.3.42",
     "psycopg2-binary>=2.9.10",
-    "psycopg[binary]>=3.2.9",
+    "pytest>=8.4.0",
     "python-dotenv>=1.1.0",
     "sqlalchemy>=2.0.41",
     "uvicorn>=0.34.2",

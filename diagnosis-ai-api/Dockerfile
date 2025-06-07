@@ -17,6 +17,8 @@ ENV PATH="/root/.local/bin/:$PATH"
 
 # Copy requirements file
 COPY pyproject.toml ./
+COPY uv.lock ./
+COPY firebase-adminsdk.json ./
 
 # Install Python dependencies
 RUN uv sync

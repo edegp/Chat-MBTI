@@ -139,6 +139,13 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final provider = GoogleAuthProvider()..addScope('email');
       await _auth.signInWithPopup(provider);
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final idToken = await user.getIdToken(true);
+        debugPrint(idToken);
+      }
+
       Navigator.pushReplacementNamed(context, '/chat');
     } on FirebaseAuthException catch (e) {
       setState(() => _error = e.message);
@@ -165,7 +172,7 @@ class _LoginPageState extends State<LoginPage> {
                   const Text(
                     'Chat-MBTI',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 36,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'serif',
                     ),
@@ -178,7 +185,7 @@ class _LoginPageState extends State<LoginPage> {
                 'あなたの本当の性格をお教えします',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 36,
+                  fontSize: 42,
                   fontWeight: FontWeight.w500,
                   height: 1.2,
                   fontFamily: 'serif',
@@ -189,7 +196,7 @@ class _LoginPageState extends State<LoginPage> {
               const Text(
                 '性格に基づいた相談で、自分が気づかなかった本当の自分を理解できる相談エージェント',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+                style: TextStyle(fontSize: 18, color: Colors.black54),
               ),
               const SizedBox(height: 40),
               // カード
@@ -251,7 +258,7 @@ class _LoginPageState extends State<LoginPage> {
                               _isProcessing ? null : _sendSignInLinkToEmail,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -269,7 +276,7 @@ class _LoginPageState extends State<LoginPage> {
                                   : const Text(
                                     'メールで続ける',
                                     style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 18,
                                       color: Colors.white,
                                     ),
                                   ),
