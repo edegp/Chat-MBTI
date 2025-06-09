@@ -1,0 +1,19 @@
+name: Manual Deploy Firebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy-firebase:
+    name: Manual Firebase Deployment
+    uses: ./.github/workflows/deploy-firebase.yml
+    secrets: inherit

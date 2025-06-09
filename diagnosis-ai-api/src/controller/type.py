@@ -3,6 +3,15 @@ from typing import List
 from ..usecase.type import Message
 
 
+class StartConversationRequest(BaseModel):
+    user_id: str
+
+
+class ProcessUserResponseRequest(BaseModel):
+    user_input: str
+    user_id: str
+
+
 class UserRequest(BaseModel):
     messages: List[Message]
 

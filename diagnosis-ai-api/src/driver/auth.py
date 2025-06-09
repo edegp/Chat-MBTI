@@ -1,11 +1,7 @@
 import os
 import firebase_admin
-from firebase_admin import credentials, auth
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Depends, HTTPException
-
-
-security = HTTPBearer()
+from firebase_admin import credentials, auth as firebase_auth
+from fastapi.security import HTTPAuthorizationCredentials
 
 # Initialize Firebase Admin SDK
 if not firebase_admin._apps:
@@ -25,13 +21,21 @@ if not firebase_admin._apps:
         print("Firebase initialized with default credentials")
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-):
+async def get_firebase_user(credentials: HTTPAuthorizationCredentials):
     """Firebase認証トークンを検証し、ユーザー情報を返す"""
     try:
         token = credentials.credentials
-        decoded_token = auth.verify_id_token(token)
+        print(f"Received token: {token[:50]}..." if len(token) > 50 else token)
+        # Add clock skew tolerance of 10 seconds
+        decoded_token = firebase_auth.verify_id_token(token, clock_skew_seconds=10)
+        print(
+            f"Successfully decoded token for user: {decoded_token.get('user_id', 'unknown')}"
+        )
         return decoded_token
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"認証エラー: {str(e)}")
+        print(f"Authentication error: {str(e)}")
+        print(f"Token type: {type(token)}")
+        print(f"Token length: {len(token) if token else 'None'}")
+        raise ValueError(
+            f"Invalid authentication token. Please provide a valid Firebase ID token. {str(e)}",
+        )

@@ -1,0 +1,68 @@
+name: Test Flutter App
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'flutter_ui/**'
+      - '.github/workflows/test-flutter.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'flutter_ui/**'
+      - '.github/workflows/test-flutter.yml'
+  workflow_call:
+    outputs:
+      test-result:
+        description: 'Result of Flutter tests'
+        value: ${{ jobs.test-flutter.outputs.result }}
+      build-artifact:
+        description: 'Name of the build artifact'
+        value: ${{ jobs.test-flutter.outputs.artifact-name }}
+
+env:
+  FLUTTER_VERSION: '3.7.2'
+
+jobs:
+  test-flutter:
+    name: Test Flutter App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./flutter_ui
+    outputs:
+      result: ${{ steps.test.outcome }}
+      artifact-name: flutter-web-build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        id: test
+        run: flutter test
+
+      - name: Build Flutter web app
+        run: |
+          flutter build web --release \
+            --web-renderer canvaskit \
+            --base-href /
+
+      - name: Upload Flutter build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: flutter-web-build
+          path: flutter_ui/build/web/
+          retention-days: 1

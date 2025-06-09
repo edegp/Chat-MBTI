@@ -1,0 +1,106 @@
+name: Full CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PROJECT_ID: chat-mbti-458210
+
+jobs:
+  # Test jobs that run in parallel
+  test-api:
+    name: Test API
+    uses: ./.github/workflows/test-api.yml
+    secrets: inherit
+
+  test-flutter:
+    name: Test Flutter
+    uses: ./.github/workflows/test-flutter.yml
+    secrets: inherit
+
+  # Deployment jobs that run only on main branch pushes
+  deploy-firebase:
+    name: Deploy Frontend
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [test-api, test-flutter]
+    uses: ./.github/workflows/deploy-firebase.yml
+    with:
+      artifact-name: ${{ needs.test-flutter.outputs.build-artifact }}
+    secrets: inherit
+
+  # PR Comment for deployment status and test results
+  comment:
+    name: Comment on PR
+    runs-on: ubuntu-latest
+    needs: [test-api, test-flutter, deploy-firebase]
+    if: always() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const testApiResult = '${{ needs.test-api.result }}';
+            const testFlutterResult = '${{ needs.test-flutter.result }}';
+            const deployResult = '${{ needs.deploy-firebase.result }}';
+
+            let comment = '## 🔍 Test Results Summary\n\n';
+
+            // Test results
+            comment += '### Test Status\n';
+            comment += `- **API Tests**: ${testApiResult === 'success' ? '✅ Passed' : '❌ Failed'}\n`;
+            comment += `- **Flutter Tests**: ${testFlutterResult === 'success' ? '✅ Passed' : '❌ Failed'}\n\n`;
+
+            // Overall status
+            const allTestsPassed = testApiResult === 'success' && testFlutterResult === 'success';
+
+            if (allTestsPassed) {
+              comment += '### ✅ All tests passed!\n';
+              comment += 'This PR is ready for review and merge.\n\n';
+            } else {
+              comment += '### ❌ Some tests failed\n';
+              comment += 'Please check the workflow logs and fix the failing tests.\n\n';
+            }
+
+            comment += '### 📋 Details\n';
+            comment += `- **Workflow Run**: [View Details](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})\n`;
+            comment += `- **Commit**: ${{ github.sha }}\n`;
+            comment += `- **Branch**: ${{ github.head_ref }}\n`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Deployment notification for main branch
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [deploy-firebase]
+    if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Send success notification
+        if: needs.deploy-firebase.result == 'success'
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "✅ Flutter app deployed to Firebase Hosting"
+          echo "🔗 Frontend URL: ${{ needs.deploy-firebase.outputs.deployment-url }}"
+
+      - name: Send failure notification
+        if: needs.deploy-firebase.result == 'failure'
+        run: |
+          echo "❌ Firebase deployment failed!"
+          echo "📋 Check the workflow logs for details"
+          exit 1

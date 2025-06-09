@@ -1,0 +1,237 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  PROJECT_ID: chat-mbti-458210
+  FLUTTER_VERSION: '3.7.2'
+  PYTHON_VERSION: '3.12'
+  NODE_VERSION: '18'
+
+jobs:
+  # Job 1: Test Python API
+  test-api:
+    name: Test Python API
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./diagnosis-ai-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv sync
+
+      - name: Run tests with pytest
+        run: |
+          uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --tb=short
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./diagnosis-ai-api/coverage.xml
+          flags: api-tests
+          name: api-coverage
+
+  # Job 2: Build and Test Flutter App
+  test-flutter:
+    name: Test Flutter App
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./flutter_ui
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Run Flutter tests
+        run: flutter test
+
+      - name: Build Flutter web app
+        run: |
+          flutter build web --release \
+            --web-renderer canvaskit \
+            --base-href /
+
+      - name: Upload Flutter build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: flutter-web-build
+          path: flutter_ui/build/web/
+          retention-days: 1
+
+  # Job 3: Deploy to Firebase Hosting (only on main branch)
+  deploy-firebase:
+    name: Deploy to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: [test-api, test-flutter]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    defaults:
+      run:
+        working-directory: ./flutter_ui
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Build Flutter web app for production
+        run: |
+          flutter build web --release \
+            --web-renderer canvaskit \
+            --base-href /
+
+      - name: Create Firebase hosting configuration
+        run: |
+          cat > firebase.json << 'EOF'
+          {
+            "hosting": {
+              "public": "build/web",
+              "ignore": [
+                "firebase.json",
+                "**/.*",
+                "**/node_modules/**"
+              ],
+              "rewrites": [
+                {
+                  "source": "**",
+                  "destination": "/index.html"
+                }
+              ],
+              "headers": [
+                {
+                  "source": "**/*.@(js|css|woff2)",
+                  "headers": [
+                    {
+                      "key": "Cache-Control",
+                      "value": "max-age=31536000"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+          EOF
+
+      - name: Deploy to Firebase Hosting
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}' | base64 -d > ${HOME}/firebase-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=${HOME}/firebase-key.json
+          firebase deploy --only hosting --project ${{ env.PROJECT_ID }} --token "${{ secrets.FIREBASE_TOKEN }}"
+
+  # Job 4: Deploy API to Cloud Run (optional - only if API changes)
+  deploy-api:
+    name: Deploy API to Cloud Run
+    runs-on: ubuntu-latest
+    needs: [test-api]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    defaults:
+      run:
+        working-directory: ./diagnosis-ai-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker authentication
+        run: |
+          gcloud auth configure-docker asia-northeast1-docker.pkg.dev
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_NAME="asia-northeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/mbti-diagnosis-api-repo/mbti-diagnosis-api"
+          docker build --platform linux/amd64 -t ${IMAGE_NAME}:${{ github.sha }} -t ${IMAGE_NAME}:latest .
+          docker push ${IMAGE_NAME}:${{ github.sha }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy mbti-diagnosis-api \
+            --image asia-northeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/mbti-diagnosis-api-repo/mbti-diagnosis-api:${{ github.sha }} \
+            --region asia-northeast1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account mbti-diagnosis-api-cloud-run@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-env-vars GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},LANGSMITH_TRACING=true,LANGSMITH_PROJECT=mbti-diagnosis-api \
+            --set-secrets DATABASE_URL=mbti-diagnosis-api-db-url:latest,GEMINI_API_KEY=mbti-diagnosis-api-gemini-api-key:latest \
+            --add-cloudsql-instances ${{ env.PROJECT_ID }}:asia-northeast1:mbti-diagnosis-api-postgres \
+            --cpu 1 \
+            --memory 2Gi \
+            --min-instances 0 \
+            --max-instances 10 \
+            --port 8000
+
+  # Job 5: Notify deployment status
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [deploy-firebase, deploy-api]
+    if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Send success notification
+        if: needs.deploy-firebase.result == 'success' && (needs.deploy-api.result == 'success' || needs.deploy-api.result == 'skipped')
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "✅ Flutter app deployed to Firebase Hosting"
+          echo "✅ API deployed to Cloud Run"
+          echo "🔗 Frontend URL: https://${{ env.PROJECT_ID }}.web.app"
+
+      - name: Send failure notification
+        if: needs.deploy-firebase.result == 'failure' || needs.deploy-api.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          echo "📋 Check the workflow logs for details"
+          exit 1

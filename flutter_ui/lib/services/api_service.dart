@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:8000/api/v1';
@@ -87,6 +88,20 @@ class ApiService {
     }
   }
 
+  // 新しい会話を強制的に開始（既存セッションを完了してから新しいセッションを作成）
+  Future<Map<String, dynamic>> startNewConversation() async {
+    try {
+      // 既存のセッションを完了
+      await completeAssessment();
+    } catch (e) {
+      // 既存セッションがない場合や、完了に失敗した場合は無視して続行
+      debugPrint('Failed to complete existing session: $e');
+    }
+
+    // 新しい会話を開始
+    return await startConversation();
+  }
+
   // 診断を完了
   Future<Map<String, dynamic>> completeAssessment() async {
     final headers = await _getHeaders();
@@ -99,6 +114,21 @@ class ApiService {
       return json.decode(response.body);
     } else {
       throw Exception('Failed to complete assessment: ${response.statusCode}');
+    }
+  }
+
+  // 会話履歴を取得
+  Future<Map<String, dynamic>> getConversationHistory() async {
+    final headers = await _getHeaders();
+    final response = await http.get(
+      Uri.parse('$baseUrl/conversation/history'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to get conversation history: ${response.statusCode}');
     }
   }
 }

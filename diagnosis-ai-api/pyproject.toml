@@ -20,3 +20,74 @@ dependencies = [
     "sqlalchemy>=2.0.41",
     "uvicorn>=0.34.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.0.0",
+    "pytest-cov>=6.1.1",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/test_*",
+    "*/__init__.py",
+    "*/conftest.py",
+    "*/migrations/*",
+    "*/alembic/*",
+    "api/*",
+    "src/driver/auth.py",    # Firebase auth wrapper - external dependency
+    "src/driver/model.py",   # Data models - simple data structures
+    "src/controller/type.py", # Type definitions - no logic
+    "src/usecase/type.py",   # Type definitions - no logic
+    "src/port/ports.py",     # Interface definitions - no logic
+    "src/di_container.py",   # Dependency injection - configuration
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
+precision = 1
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+testpaths = [
+    "tests"
+]
+python_files = [
+    "test_*.py"
+]
+python_classes = [
+    "Test*",
+    "Test_*"
+]
+python_functions = [
+    "test_*",
+    "*test*",
+    "test*"
+]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings"
+]

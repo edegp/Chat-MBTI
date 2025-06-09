@@ -1,0 +1,68 @@
+name: Deploy API to Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'diagnosis-ai-api/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_call:
+    outputs:
+      deployment-url:
+        description: 'Cloud Run service URL'
+        value: ${{ jobs.deploy-api.outputs.url }}
+
+env:
+  PROJECT_ID: chat-mbti-458210
+
+jobs:
+  deploy-api:
+    name: Deploy API to Cloud Run
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./diagnosis-ai-api
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker authentication
+        run: |
+          gcloud auth configure-docker asia-northeast1-docker.pkg.dev
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_NAME="asia-northeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/mbti-diagnosis-api-repo/mbti-diagnosis-api"
+          docker build --platform linux/amd64 -t ${IMAGE_NAME}:${{ github.sha }} -t ${IMAGE_NAME}:latest .
+          docker push ${IMAGE_NAME}:${{ github.sha }}
+          docker push ${IMAGE_NAME}:latest
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          SERVICE_URL=$(gcloud run deploy mbti-diagnosis-api \
+            --image asia-northeast1-docker.pkg.dev/${{ env.PROJECT_ID }}/mbti-diagnosis-api-repo/mbti-diagnosis-api:${{ github.sha }} \
+            --region asia-northeast1 \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account mbti-diagnosis-api-cloud-run@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-env-vars GOOGLE_CLOUD_PROJECT=${{ env.PROJECT_ID }},LANGSMITH_TRACING=true,LANGSMITH_PROJECT=mbti-diagnosis-api \
+            --set-secrets DATABASE_URL=mbti-diagnosis-api-db-url:latest,GEMINI_API_KEY=mbti-diagnosis-api-gemini-api-key:latest \
+            --add-cloudsql-instances ${{ env.PROJECT_ID }}:asia-northeast1:mbti-diagnosis-api-postgres \
+            --cpu 1 \
+            --memory 2Gi \
+            --min-instances 0 \
+            --max-instances 10 \
+            --port 8000 \
+            --format="value(status.url)")
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "🚀 API deployed to: $SERVICE_URL"

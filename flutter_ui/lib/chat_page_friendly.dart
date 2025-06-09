@@ -27,6 +27,9 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   bool _isCompleted = false;
   String? _completionMessage;
 
+  // UI transition management - show only current phase conversations
+  int _currentPhase = 1; // Phase 1: Q1-5, Phase 2: Q6-10, etc.
+
   late AnimationController _bubbleAnimController;
   late AnimationController _progressAnimController;
 
@@ -50,7 +53,71 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _startConversation();
+    _checkExistingConversation();
+  }
+
+  // 既存の会話をチェックして、続きから開始するか新しい会話を始める
+  Future<void> _checkExistingConversation() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // 既存の進捗を確認
+      final progressResponse = await _apiService.getProgress();
+      final progressData = progressResponse['data'];
+      if (progressData['progress'] > 0 && progressData['progress'] < 1.0) {
+        // 途中の会話がある場合、状態を復元
+        final questionNumber = progressData['question_number'] ?? 1;
+        final currentPhase = ((questionNumber - 1) ~/ 5) + 1;
+
+        setState(() {
+          _progress = (progressData['progress'] ?? 0.0).toDouble();
+          _questionNumber = questionNumber;
+          _totalQuestions = progressData['total_questions'] ?? 20;
+          _sessionId = progressData['session_id'];
+          _currentPhase = currentPhase;
+        });
+        // デバッグ用ログ
+        debugPrint('Restoring conversation: progress=${_progress}, question=${_questionNumber}/${_totalQuestions}, phase=${_currentPhase}');
+        print('Browser Console: Restoring conversation: progress=${_progress}, question=${_questionNumber}/${_totalQuestions}, phase=${_currentPhase}');
+
+        // プログレスバーアニメーションを復元された進捗値まで設定
+        _progressAnimController.animateTo(_progress);
+
+        // 会話履歴を復元
+        await _restoreConversationHistory();
+
+        // 現在の質問を取得するために会話を開始
+        await _startConversation();
+
+        // 復元メッセージを表示
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Phase $_currentPhase から続行 (${_questionNumber}/${_totalQuestions})'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else if (progressData['progress'] >= 1.0) {
+        // 完了した診断がある場合
+        setState(() {
+          _isCompleted = true;
+          _completionMessage = '前回の診断が完了しています。新しい診断を開始できます。';
+          _isLoading = false;
+        });
+      } else {
+        // 新しい会話を開始
+        await _startConversation();
+      }
+    } catch (e) {
+      // エラーの場合は新しい会話を開始
+      debugPrint('Progress check failed, starting new conversation: $e');
+      await _startConversation();
+    }
   }
 
   Future<void> _startConversation() async {
@@ -61,6 +128,39 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
     try {
       final response = await _apiService.startConversation();
+      final data = response['data'];
+
+      setState(() {
+        _currentQuestion = data['question'];
+        _sessionId = data['session_id'];
+        _isLoading = false;
+        _chatHistory.add({
+          'type': 'question',
+          'text': data['question'],
+          'timestamp': DateTime.now(),
+        });
+      });
+
+      _bubbleAnimController.forward();
+      await _getOptions();
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 新しい会話を強制的に開始（既存セッションを無視）
+  Future<void> _startNewConversation() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _currentPhase = 1; // Reset to Phase 1 when starting new conversation
+    });
+
+    try {
+      final response = await _apiService.startNewConversation();
       final data = response['data'];
 
       setState(() {
@@ -117,10 +217,33 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       final data = response['data'];
 
       if (data['phase'] == 'question') {
+        final newQuestionNumber = data['question_number'] ?? 1;
+        final newPhase = ((newQuestionNumber - 1) ~/ 5) + 1;
+
+        // Check if we need to transition to a new phase (every 5 questions)
+        if (newPhase > _currentPhase) {
+          // Clear history when entering a new phase
+          setState(() {
+            _chatHistory.clear();
+            _currentPhase = newPhase;
+          });
+
+          // Show phase transition message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Phase $_currentPhase開始 (質問 ${(newPhase-1)*5 + 1}-${newPhase*5})'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+
         setState(() {
           _currentQuestion = data['question'];
           _progress = (data['progress'] ?? 0.0).toDouble();
-          _questionNumber = data['question_number'] ?? 1;
+          _questionNumber = newQuestionNumber;
           _totalQuestions = data['total_questions'] ?? 20;
           _isLoading = false;
           _chatHistory.add({
@@ -130,7 +253,18 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           });
         });
 
-        _progressAnimController.forward();
+        // デバッグ用ログ
+        debugPrint('Progress updated: ${_progress}, question: ${_questionNumber}/${_totalQuestions}, Phase: $_currentPhase');
+        debugPrint('Backend data: ${data}');
+        print('Browser Console: Progress updated: ${_progress}, question: ${_questionNumber}/${_totalQuestions}, Phase: $_currentPhase');
+        print('Browser Console: Backend data: ${data}');
+
+        // プログレスバーアニメーションを更新
+        _progressAnimController.animateTo(_progress);
+
+        // 明示的にプログレス情報を再取得して更新
+        await _updateProgress();
+
         await _getOptions();
         _scrollToBottom();
       } else if (data['phase'] == 'diagnosis') {
@@ -145,6 +279,30 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         _error = e.toString();
         _isLoading = false;
       });
+    }
+  }
+
+  // プログレス情報を明示的に更新する関数
+  Future<void> _updateProgress() async {
+    try {
+      final progressResponse = await _apiService.getProgress();
+      final progressData = progressResponse['data'];
+
+      setState(() {
+        _progress = (progressData['progress'] ?? 0.0).toDouble();
+        _questionNumber = progressData['question_number'] ?? 1;
+        _totalQuestions = progressData['total_questions'] ?? 20;
+      });
+
+      // デバッグ用ログ
+      debugPrint('Progress refreshed: ${_progress}, question: ${_questionNumber}/${_totalQuestions}');
+      print('Browser Console: Progress refreshed: ${_progress}, question: ${_questionNumber}/${_totalQuestions}');
+
+      // プログレスバーアニメーションを最新の値で更新
+      _progressAnimController.animateTo(_progress);
+    } catch (e) {
+      debugPrint('Failed to update progress: $e');
+      print('Browser Console: Failed to update progress: $e');
     }
   }
 
@@ -164,6 +322,48 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
     await FirebaseAuth.instance.signOut();
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/');
+    }
+  }
+
+  // 会話履歴を復元
+  Future<void> _restoreConversationHistory() async {
+    try {
+      final historyResponse = await _apiService.getConversationHistory();
+      final historyData = historyResponse['data'];
+      final history = historyData['history'] as List<dynamic>;
+
+      // Filter history to only show messages from current phase
+      final phaseStartIndex = (_currentPhase - 1) * 5;
+      final phaseEndIndex = _currentPhase * 5;
+
+      // Only show conversations for current phase questions
+      final filteredHistory = history.where((msg) {
+        // For question-type messages, check if they belong to current phase
+        if (msg['type'] == 'question') {
+          // Estimate question number based on position in history
+          final questionIndex = history.where((h) => h['type'] == 'question').toList().indexOf(msg);
+          return questionIndex >= phaseStartIndex && questionIndex < phaseEndIndex;
+        }
+        // For answer-type messages, include if there's a corresponding question in this phase
+        return true; // Simplified: include all answers for now
+      }).toList();
+
+      setState(() {
+        _chatHistory = filteredHistory.map((msg) => {
+          'type': msg['type'],
+          'text': msg['text'],
+          'timestamp': DateTime.now(), // Use current time for restored messages
+        }).toList();
+      });
+
+      // チャットの最下部にスクロール
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Failed to restore conversation history: $e');
+      // 履歴復元に失敗してもエラーにはせず、空の履歴で続行
+      setState(() {
+        _chatHistory = [];
+      });
     }
   }
 
@@ -319,34 +519,48 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         ],
       ),
       child: Column(
-        children: [            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '質問 $_questionNumber / $_totalQuestions',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${(_progress * 100).toInt()}%',
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Phase $_currentPhase',
                     style: const TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
                     ),
                   ),
+                  Text(
+                    '質問 $_questionNumber / $_totalQuestions',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
+                child: Text(
+                  '${(_progress * 100).toInt()}%',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           Container(
             height: 6,
@@ -356,17 +570,12 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(3),
-              child: AnimatedBuilder(
-                animation: _progressAnimController,
-                builder: (context, child) {
-                  return LinearProgressIndicator(
-                    value: _progress * _progressAnimController.value,
-                    backgroundColor: Colors.transparent,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.black,
-                    ),
-                  );
-                },
+              child: LinearProgressIndicator(
+                value: _progress,
+                backgroundColor: Colors.transparent,
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  Colors.black,
+                ),
               ),
             ),
           ),
@@ -760,10 +969,12 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                             _chatHistory = [];
                             _progress = 0.0;
                             _questionNumber = 1;
+                            _sessionId = null;
                           });
                           _bubbleAnimController.reset();
                           _progressAnimController.reset();
-                          _startConversation();
+                          // 新しい会話を強制的に開始（既存セッションを無視）
+                          _startNewConversation();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.black,
