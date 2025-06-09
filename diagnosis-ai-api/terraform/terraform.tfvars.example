@@ -1,0 +1,19 @@
+# Example terraform.tfvars file
+# Copy this file to terraform.tfvars and fill in your values
+
+# Required variables
+project_id = "your-gcp-project-id"
+db_password = "your-secure-database-password"
+gemini_api_key = "your-gemini-api-key"
+
+# Optional variables (uncomment and modify as needed)
+# region = "asia-northeast1"
+# app_name = "mbti-diagnosis-api"
+# min_instances = 0
+# max_instances = 10
+# cpu_limit = "1"
+# memory_limit = "2Gi"
+# db_tier = "db-f1-micro"
+# db_name = "mbti_diagnosis"
+# db_user = "mbti_user"
+# custom_domain = "api.yourdomain.com"

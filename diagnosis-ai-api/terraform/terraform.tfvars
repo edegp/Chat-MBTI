@@ -1,7 +1,7 @@
 # Terraform variables for MBTI Diagnosis API deployment
 project_id = "chat-mbti-458210"
 db_password = "SecurePassword123!"
-gemini_api_key = "AIzaSyDM58NqkGydvxHXum0PfrUCFg4W8JsM5m4"
+gemini_api_key = "temp-key-for-testing"
 
 # Optional customizations
 region = "asia-northeast1"

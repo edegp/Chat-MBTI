@@ -22,6 +22,7 @@ COPY firebase-adminsdk.json ./
 
 # Install Python dependencies
 RUN uv sync
+RUN uv pip install -e .
 
 COPY . .
 

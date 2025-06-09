@@ -23,8 +23,21 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    // Check if user is already logged in
+    _checkCurrentUser();
     // Check if the app was opened with a sign-in link
     _checkForSignInLink();
+  }
+
+  // Check if user is already logged in
+  void _checkCurrentUser() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      // User is already logged in, redirect to chat
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/chat');
+      });
+    }
   }
 
   @override
