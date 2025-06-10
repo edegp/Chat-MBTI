@@ -146,6 +146,7 @@ class _LoginPageState extends State<LoginPage> {
           _isProcessing = false;
         });
       }
+    }
   }
 
   // Google サインイン
@@ -236,7 +237,7 @@ class _LoginPageState extends State<LoginPage> {
                       // Googleで続ける
                       SizedBox(
                         width: double.infinity,
-                        child: googleSignInButton(onPressed: _signInWithGoogle),
+                        child: GoogleSignInButton(onPressed: _signInWithGoogle),
                       ),
                       const SizedBox(height: 16),
                       // または
@@ -443,9 +444,4 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
       ),
     );
   }
-}
-
-// If you need to keep the original function as well, you can use this helper function
-Widget googleSignInButton({void Function()? onPressed}) {
-  return GoogleSignInButton(onPressed: onPressed);
 }
