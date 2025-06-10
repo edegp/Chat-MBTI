@@ -65,7 +65,6 @@ jobs:
       - name: Build Flutter web app for production
         run: |
           flutter build web --release \
-            --web-renderer canvaskit \
             --base-href /
 
       - name: Deploy to Firebase Hosting

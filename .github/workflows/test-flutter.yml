@@ -57,7 +57,6 @@ jobs:
       - name: Build Flutter web app
         run: |
           flutter build web --release \
-            --web-renderer canvaskit \
             --base-href /
 
       - name: Upload Flutter build artifacts
