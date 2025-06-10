@@ -9,9 +9,15 @@ load_dotenv()
 # Configure Google API key
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable not set")
+    # Check if we're in a test environment
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        GEMINI_API_KEY = "test-api-key-for-testing"
+    else:
+        raise ValueError("GEMINI_API_KEY environment variable not set")
 
-genai.configure(api_key=GEMINI_API_KEY)
+# Only configure genai if not in test environment
+if not os.environ.get("PYTEST_CURRENT_TEST"):
+    genai.configure(api_key=GEMINI_API_KEY)
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",

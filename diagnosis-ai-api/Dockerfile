@@ -17,9 +17,12 @@ ENV PATH="/root/.local/bin/:$PATH"
 
 # Copy requirements file
 COPY pyproject.toml ./
+COPY uv.lock ./
+COPY firebase-adminsdk.json ./
 
 # Install Python dependencies
 RUN uv sync
+RUN uv pip install -e .
 
 COPY . .
 
@@ -27,4 +30,4 @@ COPY . .
 EXPOSE 8000
 
 # Command to run the application
-CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000"]

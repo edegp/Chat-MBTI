@@ -5,6 +5,11 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
     ports:
       - "8000:8000"
     environment:
@@ -14,7 +19,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ./:/app
+      - ./src:/app/src
     restart: unless-stopped
 
   db:

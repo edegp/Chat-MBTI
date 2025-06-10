@@ -23,8 +23,21 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    // Check if user is already logged in
+    _checkCurrentUser();
     // Check if the app was opened with a sign-in link
     _checkForSignInLink();
+  }
+
+  // Check if user is already logged in
+  void _checkCurrentUser() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      // User is already logged in, redirect to chat
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/chat');
+      });
+    }
   }
 
   @override
@@ -121,16 +134,18 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => EmailVerificationPage(email: email),
-        ),
-      );
-      setState(() {
-        _error = e.toString();
-        _isProcessing = false;
-      });
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EmailVerificationPage(email: email),
+          ),
+        );
+        setState(() {
+          _error = e.toString();
+          _isProcessing = false;
+        });
+      }
     }
   }
 
@@ -139,7 +154,16 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final provider = GoogleAuthProvider()..addScope('email');
       await _auth.signInWithPopup(provider);
-      Navigator.pushReplacementNamed(context, '/chat');
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final idToken = await user.getIdToken(true);
+        debugPrint(idToken);
+      }
+
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/chat');
+      }
     } on FirebaseAuthException catch (e) {
       setState(() => _error = e.message);
     }
@@ -165,7 +189,7 @@ class _LoginPageState extends State<LoginPage> {
                   const Text(
                     'Chat-MBTI',
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 36,
                       fontWeight: FontWeight.bold,
                       fontFamily: 'serif',
                     ),
@@ -178,7 +202,7 @@ class _LoginPageState extends State<LoginPage> {
                 'あなたの本当の性格をお教えします',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 36,
+                  fontSize: 42,
                   fontWeight: FontWeight.w500,
                   height: 1.2,
                   fontFamily: 'serif',
@@ -189,7 +213,7 @@ class _LoginPageState extends State<LoginPage> {
               const Text(
                 '性格に基づいた相談で、自分が気づかなかった本当の自分を理解できる相談エージェント',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.black54),
+                style: TextStyle(fontSize: 18, color: Colors.black54),
               ),
               const SizedBox(height: 40),
               // カード
@@ -213,7 +237,7 @@ class _LoginPageState extends State<LoginPage> {
                       // Googleで続ける
                       SizedBox(
                         width: double.infinity,
-                        child: googleSignInButton(onPressed: _signInWithGoogle),
+                        child: GoogleSignInButton(onPressed: _signInWithGoogle),
                       ),
                       const SizedBox(height: 16),
                       // または
@@ -243,6 +267,22 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
+                      // Error display
+                      if (_error != null)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(color: Colors.red, fontSize: 14),
+                          ),
+                        ),
+                      if (_error != null) const SizedBox(height: 16),
                       // メールで続ける
                       SizedBox(
                         width: double.infinity,
@@ -251,7 +291,7 @@ class _LoginPageState extends State<LoginPage> {
                               _isProcessing ? null : _sendSignInLinkToEmail,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            padding: const EdgeInsets.symmetric(vertical: 18),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -269,7 +309,7 @@ class _LoginPageState extends State<LoginPage> {
                                   : const Text(
                                     'メールで続ける',
                                     style: TextStyle(
-                                      fontSize: 16,
+                                      fontSize: 18,
                                       color: Colors.white,
                                     ),
                                   ),
@@ -339,7 +379,7 @@ class _LoginPageState extends State<LoginPage> {
 class GoogleSignInButton extends StatefulWidget {
   final void Function()? onPressed;
 
-  const GoogleSignInButton({Key? key, this.onPressed}) : super(key: key);
+  const GoogleSignInButton({super.key, this.onPressed});
 
   @override
   State<GoogleSignInButton> createState() => _GoogleSignInButtonState();
@@ -363,7 +403,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
           side: BorderSide(
-            color: Color(0xFF747775).withOpacity(_isHovered ? 0.8 : 1.0),
+            color: Color(0xFF747775).withValues(alpha: _isHovered ? 0.8 : 1.0),
           ),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -404,9 +444,4 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
       ),
     );
   }
-}
-
-// If you need to keep the original function as well, you can use this helper function
-Widget googleSignInButton({void Function()? onPressed}) {
-  return GoogleSignInButton(onPressed: onPressed);
 }

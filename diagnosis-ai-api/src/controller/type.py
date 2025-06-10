@@ -1,20 +1,23 @@
 from pydantic import BaseModel
 from typing import List
-import uuid
+from ..usecase.type import Message
 
 
-class Message(BaseModel):
-    role: str  # "user" or "assistant"
-    content: str
+class StartConversationRequest(BaseModel):
+    user_id: str
+
+
+class ProcessUserResponseRequest(BaseModel):
+    user_input: str
+    user_id: str
 
 
 class UserRequest(BaseModel):
-    user_id: uuid.UUID
     messages: List[Message]
 
 
 class OptionsRequest(BaseModel):
-    user_id: uuid.UUID
+    # user_id: uuid.UUID
     retry: bool = False
 
 

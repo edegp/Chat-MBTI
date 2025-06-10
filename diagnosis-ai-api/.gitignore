@@ -1,0 +1,23 @@
+firebase-adminsdk.json
+.DS_Store
+# python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+# Jupyter Notebook
+.ipynb_checkpoints
+# VS Code
+.vscode/
+# PyCharm
+.idea/
+# Local environment files
+.env
+.env.local
+# Logs
+*.log
+# terraform
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/

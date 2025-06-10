@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class EmailVerificationPage extends StatefulWidget {
   final String email;
 
-  const EmailVerificationPage({Key? key, required this.email})
-    : super(key: key);
+  const EmailVerificationPage({super.key, required this.email});
 
   @override
   State<EmailVerificationPage> createState() => _EmailVerificationPageState();
@@ -106,34 +104,6 @@ class _EmailVerificationPageState extends State<EmailVerificationPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _verifyCode() {
-    // Combine all codes
-    String verificationCode = _controllers.map((c) => c.text).join();
-
-    // Check if all fields are filled
-    if (verificationCode.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('6桁の認証コードを入力してください'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
-    // Add verification logic here
-    print('Verification code: $verificationCode');
-
-    // Navigate to next screen or show success message
-    // For now, just show a snackbar
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('認証が完了しました'),
-        duration: Duration(seconds: 2),
       ),
     );
   }
