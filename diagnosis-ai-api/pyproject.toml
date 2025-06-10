@@ -25,6 +25,7 @@ dependencies = [
 dev = [
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=6.1.1",
+    "pytest-env>=1.1.5",
 ]
 
 [tool.coverage.run]
@@ -90,4 +91,8 @@ addopts = [
     "--tb=short",
     "--strict-markers",
     "--disable-warnings"
+]
+env = [
+    "GEMINI_API_KEY=test-api-key-for-testing",
+    "DATABASE_URL=postgresql://test:test@localhost:5432/test"
 ]

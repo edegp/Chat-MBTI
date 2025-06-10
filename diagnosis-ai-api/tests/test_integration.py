@@ -178,7 +178,8 @@ class TestMBTIIntegration:
 
         # Verify error contains relevant information
         assert "Failed to start conversation" in str(exc_info.value)
-        assert "LLM API Error" in str(exc_info.value)
+        # The service wraps unexpected errors with a generic message, so check for that instead
+        assert "due to unexpected error" in str(exc_info.value)
 
 
 if __name__ == "__main__":

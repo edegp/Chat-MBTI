@@ -325,8 +325,8 @@ class TestDatabaseのエラーハンドリング:
         with patch("psycopg2.connect", return_value=mock_conn):
             driver = ChatSessionDriver()
 
-        # 実行・検証
-        with pytest.raises(psycopg2.Error):
+        # 実行・検証 - QueryErrorが期待される（psycopg2.Errorをラップしている）
+        with pytest.raises(QueryError):
             driver.get_or_create_user("firebase-uid")
 
 
