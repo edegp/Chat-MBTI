@@ -21,7 +21,7 @@ on:
         value: ${{ jobs.test-flutter.outputs.artifact-name }}
 
 env:
-  FLUTTER_VERSION: '3.7.2'
+  FLUTTER_VERSION: '3.29.3'
 
 jobs:
   test-flutter:
