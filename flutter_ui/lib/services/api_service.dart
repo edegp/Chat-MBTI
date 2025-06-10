@@ -12,7 +12,7 @@ class ApiService {
       try {
         return await user.getIdToken(true); // Force refresh token
       } catch (e) {
-        print('Failed to get ID token: $e');
+        debugPrint('Failed to get ID token: $e');
         return null;
       }
     }

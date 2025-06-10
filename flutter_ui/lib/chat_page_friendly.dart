@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
 import 'services/api_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:math' as math;
 
 class FriendlyChatPage extends StatefulWidget {
   const FriendlyChatPage({super.key});
@@ -80,8 +78,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           _currentPhase = currentPhase;
         });
         // デバッグ用ログ
-        debugPrint('Restoring conversation: progress=${_progress}, question=${_questionNumber}/${_totalQuestions}, phase=${_currentPhase}');
-        print('Browser Console: Restoring conversation: progress=${_progress}, question=${_questionNumber}/${_totalQuestions}, phase=${_currentPhase}');
+        debugPrint('Restoring conversation: progress=$_progress, question=$_questionNumber/$_totalQuestions, phase=$_currentPhase, sessionId=$_sessionId');
+        debugPrint('Browser Console: Restoring conversation: progress=$_progress, question=$_questionNumber/$_totalQuestions, phase=$_currentPhase');
 
         // プログレスバーアニメーションを復元された進捗値まで設定
         _progressAnimController.animateTo(_progress);
@@ -96,7 +94,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Phase $_currentPhase から続行 (${_questionNumber}/${_totalQuestions})'),
+              content: Text('Phase $_currentPhase から続行 ($_questionNumber/$_totalQuestions)'),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 3),
             ),
@@ -254,10 +252,10 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         });
 
         // デバッグ用ログ
-        debugPrint('Progress updated: ${_progress}, question: ${_questionNumber}/${_totalQuestions}, Phase: $_currentPhase');
-        debugPrint('Backend data: ${data}');
-        print('Browser Console: Progress updated: ${_progress}, question: ${_questionNumber}/${_totalQuestions}, Phase: $_currentPhase');
-        print('Browser Console: Backend data: ${data}');
+        debugPrint('Progress updated: $_progress, question: $_questionNumber/$_totalQuestions, Phase: $_currentPhase');
+        debugPrint('Backend data: $data');
+        debugPrint('Browser Console: Progress updated: $_progress, question: $_questionNumber/$_totalQuestions, Phase: $_currentPhase');
+        debugPrint('Browser Console: Backend data: $data');
 
         // プログレスバーアニメーションを更新
         _progressAnimController.animateTo(_progress);
@@ -295,14 +293,14 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       });
 
       // デバッグ用ログ
-      debugPrint('Progress refreshed: ${_progress}, question: ${_questionNumber}/${_totalQuestions}');
-      print('Browser Console: Progress refreshed: ${_progress}, question: ${_questionNumber}/${_totalQuestions}');
+      debugPrint('Progress refreshed: $_progress, question: $_questionNumber/$_totalQuestions');
+      debugPrint('Browser Console: Progress refreshed: $_progress, question: $_questionNumber/$_totalQuestions');
 
       // プログレスバーアニメーションを最新の値で更新
       _progressAnimController.animateTo(_progress);
     } catch (e) {
       debugPrint('Failed to update progress: $e');
-      print('Browser Console: Failed to update progress: $e');
+      debugPrint('Browser Console: Failed to update progress: $e');
     }
   }
 
@@ -391,7 +389,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -461,7 +459,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 10,
                   offset: const Offset(0, -2),
                 ),
@@ -512,7 +510,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -757,7 +755,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -917,7 +915,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 20,
                       offset: const Offset(0, 4),
                     ),
