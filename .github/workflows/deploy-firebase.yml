@@ -56,7 +56,7 @@ jobs:
 
       - name: Download Flutter build artifacts (if available)
         if: inputs.artifact-name != ''
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}
           path: flutter_ui/build/web/
@@ -67,38 +67,6 @@ jobs:
           flutter build web --release \
             --web-renderer canvaskit \
             --base-href /
-
-      - name: Create Firebase hosting configuration
-        run: |
-          cat > firebase.json << 'EOF'
-          {
-            "hosting": {
-              "public": "build/web",
-              "ignore": [
-                "firebase.json",
-                "**/.*",
-                "**/node_modules/**"
-              ],
-              "rewrites": [
-                {
-                  "source": "**",
-                  "destination": "/index.html"
-                }
-              ],
-              "headers": [
-                {
-                  "source": "**/*.@(js|css|woff2)",
-                  "headers": [
-                    {
-                      "key": "Cache-Control",
-                      "value": "max-age=31536000"
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-          EOF
 
       - name: Deploy to Firebase Hosting
         run: |
