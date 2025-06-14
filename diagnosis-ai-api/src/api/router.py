@@ -4,6 +4,7 @@ FastAPI routes for MBTI conversation API using new architecture
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from typing import List
 import logging
 
 # Import controller directly to avoid circular imports
@@ -13,6 +14,7 @@ from src.controller.mbti_controller import (
     get_mbti_controller,
     init_database,
 )
+from src.controller.type import StartConversationRequest
 from src.exceptions import MBTIApplicationError, ValidationError, AuthenticationError
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,13 @@ class SubmitAnswerRequest(BaseModel):
     answer: str
 
 
+class Message(BaseModel):
+    """Message model for conversation"""
+
+    role: str  # e.g., "user", "assistant"
+    content: str
+
+
 @router.get("/conversation/start")
 async def start_conversation(
     controller: MBTIController = Depends(get_mbti_controller),
@@ -41,10 +50,16 @@ async def start_conversation(
             raise AuthenticationError("User ID not found in authentication token")
 
         logger.info("Starting conversation", extra={"user_id": user_id})
-        result = await controller.start_conversation(user_id)
+        result = await controller.start_conversation(
+            StartConversationRequest(user_id=user_id)
+        )
 
         if result["status"] == "error":
             # This shouldn't happen with proper error handling in controller
+            logger.error(
+                "Error starting conversation",
+                extra={"user_id": user_id, "error": result["message"]},
+            )
             raise ValidationError(result["message"])
 
         logger.info(
@@ -69,6 +84,7 @@ async def start_conversation(
         error = ValidationError(
             "Failed to start conversation", {"user_id": user_id, "error": str(e)}
         )
+        logger.error(f"Unexpected error starting conversation {e}")
         error.log_error(logger)
         raise error
 
@@ -212,7 +228,7 @@ async def get_progress(
             raise ValidationError(result["message"])
 
         logger.info(
-            "Progress retrieved successfully",
+            f"Progress retrieved successfully: {result['progress']} {result["question_number"]}/{result.get("total_questions", 20)}",
             extra={
                 "user_id": user_id,
                 "progress": result.get("progress"),

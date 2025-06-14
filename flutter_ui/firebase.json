@@ -1,66 +1,69 @@
 {
-    "hosting": {
-        "public": "build/web",
-        "ignore": [
-            "firebase.json",
-            "**/.*",
-            "**/node_modules/**"
-        ],
-        "rewrites": [
-            {
-                "source": "**",
-                "destination": "/index.html"
-            }
-        ],
-        "headers": [
-            {
-                "source": "**/*.@(js|css|woff2)",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "max-age=31536000"
-                    }
-                ]
-            }
-        ]
-    },
-    "flutter": {
-        "platforms": {
-            "android": {
-                "default": {
-                    "projectId": "chat-mbti-458210",
-                    "appId": "1:47665095629:android:bb61ad38c2a78063d05a84",
-                    "fileOutput": "android/app/google-services.json"
-                }
-            },
-            "ios": {
-                "default": {
-                    "projectId": "chat-mbti-458210",
-                    "appId": "1:47665095629:ios:b952d5de21082d32d05a84",
-                    "uploadDebugSymbols": false,
-                    "fileOutput": "ios/Runner/GoogleService-Info.plist"
-                }
-            },
-            "macos": {
-                "default": {
-                    "projectId": "chat-mbti-458210",
-                    "appId": "1:47665095629:ios:b952d5de21082d32d05a84",
-                    "uploadDebugSymbols": false,
-                    "fileOutput": "macos/Runner/GoogleService-Info.plist"
-                }
-            },
-            "dart": {
-                "lib/firebase_options.dart": {
-                    "projectId": "chat-mbti-458210",
-                    "configurations": {
-                        "android": "1:47665095629:android:bb61ad38c2a78063d05a84",
-                        "ios": "1:47665095629:ios:b952d5de21082d32d05a84",
-                        "macos": "1:47665095629:ios:b952d5de21082d32d05a84",
-                        "web": "1:47665095629:web:98965437707cb909d05a84",
-                        "windows": "1:47665095629:web:fc8c02bc4fc747cbd05a84"
-                    }
-                }
-            }
+  "hosting": {
+    "public": "build/web",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "chat-mbti",
+          "region": "asia-northeast1"
         }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css|woff2)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=31536000"
+          }
+        ]
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "chat-mbti-458210",
+          "appId": "1:47665095629:android:bb61ad38c2a78063d05a84",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "chat-mbti-458210",
+          "appId": "1:47665095629:ios:b952d5de21082d32d05a84",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "chat-mbti-458210",
+          "appId": "1:47665095629:ios:b952d5de21082d32d05a84",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "chat-mbti-458210",
+          "configurations": {
+            "android": "1:47665095629:android:bb61ad38c2a78063d05a84",
+            "ios": "1:47665095629:ios:b952d5de21082d32d05a84",
+            "macos": "1:47665095629:ios:b952d5de21082d32d05a84",
+            "web": "1:47665095629:web:98965437707cb909d05a84",
+            "windows": "1:47665095629:web:fc8c02bc4fc747cbd05a84"
+          }
+        }
+      }
     }
+  }
 }

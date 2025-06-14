@@ -3,9 +3,14 @@ Gateway implementations for repository operations.
 This layer adapts the driver layer to the port interfaces.
 """
 
-from typing import Dict, Any, Optional
-from ..port.ports import QuestionRepositoryPort, SessionRepositoryPort
+from typing import Dict, Any, Optional, List
+from ..port.ports import (
+    QuestionRepositoryPort,
+    SessionRepositoryPort,
+    ElementRepositoryPort,
+)
 from ..driver.db import GeneratedQuestionDriver, UserAnswerDriver, ChatSessionDriver
+from ..driver.env import ElementsDriver
 
 
 class QuestionRepositoryGateway(QuestionRepositoryPort):
@@ -81,3 +86,31 @@ class SessionRepositoryGateway(SessionRepositoryPort):
             self.session_driver.close_session(session_id)
         except Exception as e:
             raise RuntimeError(f"Failed to close session: {str(e)}")
+
+
+class ElementRepositoryGateway(ElementRepositoryPort):
+    """Gateway implementation for personality element operations"""
+
+    def __init__(self):
+        self.element_driver = ElementsDriver()
+
+    def get_element_info(self, element_id: int) -> Dict[str, Any]:
+        """Get personality element information by ID"""
+        try:
+            return self.element_driver.get_element_info(element_id)
+        except Exception as e:
+            raise RuntimeError(f"Failed to get element info: {str(e)}")
+
+    def get_elements(self) -> List[Dict[str, Any]]:
+        """Get all personality elements"""
+        try:
+            return self.element_driver.get_elements()
+        except Exception as e:
+            raise RuntimeError(f"Failed to get elements: {str(e)}")
+
+    def get_initial_question(self, element_id: int = 1) -> str:
+        """Get initial question for personality element"""
+        try:
+            return self.element_driver.get_initial_question(element_id)
+        except Exception as e:
+            raise RuntimeError(f"Failed to get initial question: {str(e)}")

@@ -5,8 +5,14 @@ without dependencies on external frameworks or infrastructure.
 """
 
 import logging
-from typing import Dict, Any
-from ..port.ports import WorkflowPort, QuestionRepositoryPort, SessionRepositoryPort
+from typing import Dict, Any, List
+from ..port.ports import (
+    WorkflowPort,
+    QuestionRepositoryPort,
+    SessionRepositoryPort,
+    ElementRepositoryPort,
+)
+from .type import Message
 from ..exceptions import (
     SessionNotFoundError,
     SessionError,
@@ -27,82 +33,65 @@ class MBTIConversationService:
         workflow_port: WorkflowPort,
         question_repository: QuestionRepositoryPort,
         session_repository: SessionRepositoryPort,
+        elements_repository: ElementRepositoryPort,
     ):
         self.workflow = workflow_port
         self.question_repository = question_repository
         self.session_repository = session_repository
+        self.elements_repository = elements_repository
 
     def start_conversation(self, user_id: str) -> Dict[str, Any]:
         """Start a new MBTI conversation"""
         try:
             logger.info("Starting conversation", extra={"user_id": user_id})
-
-            # Business rule: Check if user already has an active session
             existing_session = self.session_repository.get_session_by_user(user_id)
-
             if existing_session:
-                # Continue existing conversation
+                # 既存のセッションがあれば、最新の質問を返す
                 session_id = existing_session
                 logger.info(
-                    "Continuing existing session",
+                    "Resuming existing session",
                     extra={"session_id": session_id, "user_id": user_id},
                 )
-            else:
-                # Create new session
-                session_id = self.session_repository.create_session(user_id)
-                logger.info(
-                    "Created new session",
-                    extra={"session_id": session_id, "user_id": user_id},
-                )
-
-            # Start conversation flow with initial message
-            initial_message = "Let's start your MBTI assessment!"
-            result = self.workflow.execute_conversation_flow(
-                initial_message, session_id, user_id
-            )
-
-            # Extract the generated question
-            if "messages" in result and len(result["messages"]) > 0:
-                last_message = result["messages"][-1]
-                # Handle both Message objects and dict formats
-                if hasattr(last_message, "content"):
-                    question = last_message.content
-                else:
-                    question = last_message.get("content", "")
-
-                if not question:
+                state = self.workflow.get_conversation_state(session_id)
+                messages = state.get("messages", [])
+                if not messages:
                     raise InvalidResponseError(
-                        "Empty question generated from workflow",
+                        "No messages in session",
                         {"user_id": user_id, "session_id": session_id},
                     )
-
-                logger.info(
-                    "Conversation started successfully",
-                    extra={
-                        "user_id": user_id,
-                        "session_id": session_id,
-                        "question_preview": question[:50] + "..."
-                        if len(question) > 50
-                        else question,
-                    },
+                last = messages[-1]
+                question = (
+                    last.content
+                    if hasattr(last, "content")
+                    else last.get("content", "")
                 )
-
                 return {
                     "phase": "question",
                     "question": question,
                     "session_id": session_id,
                     "status": "success",
                 }
-            else:
-                raise InvalidResponseError(
-                    "No question generated from workflow",
-                    {
-                        "user_id": user_id,
-                        "session_id": session_id,
-                        "result": str(result),
-                    },
-                )
-
+            # 新規 or 再開を問わず、最初は空履歴でワークフローを実行して質問とオプションを生成
+            session_id = (
+                self.session_repository.create_session(user_id)
+                if not existing_session
+                else existing_session
+            )
+            result = self.workflow.execute_conversation_flow("", session_id, user_id)
+            last_msg = result.get("messages", [])[-1]
+            question = (
+                last_msg.content
+                if hasattr(last_msg, "content")
+                else last_msg.get("content", "")
+            )
+            options = result.get("options", [])
+            return {
+                "phase": "question",
+                "question": question,
+                "options": options,
+                "session_id": session_id,
+                "status": "success",
+            }
         except (
             SessionNotFoundError,
             AssessmentError,
@@ -115,6 +104,9 @@ class MBTIConversationService:
             error = AssessmentError(
                 "Failed to start conversation due to unexpected error",
                 {"user_id": user_id, "error": str(e), "error_type": type(e).__name__},
+            )
+            logger.debug(
+                f"Error starting conversation for user {user_id}: {e}",
             )
             error.log_error(logger)
             raise error
@@ -185,10 +177,12 @@ class MBTIConversationService:
                     )
 
                 # Progress calculation: completed questions / total questions
-                completed_questions = next_order
+                # Adjust question index since next_order reflects next_display_order after generation
+                question_index = max(next_order, 0)
+                completed_questions = question_index
                 progress = min(completed_questions / 20.0, 1.0)
-                # Question number for upcoming question
-                current_question_number = min(next_order + 1, 20)
+                # Question number to display for the upcoming question
+                current_question_number = min(max(next_order, 1), 20)
 
                 logger.info(
                     "User response processed successfully",
@@ -322,8 +316,11 @@ class MBTIConversationService:
             if not session_id:
                 return {
                     "progress": 0.0,
-                    "message": "No active session found",
+                    "question_number": 1,
+                    "total_questions": 20,
+                    "session_id": None,
                     "status": "error",
+                    "message": "No active session found",
                 }
 
             current_state = self.workflow.get_conversation_state(session_id)
@@ -331,8 +328,8 @@ class MBTIConversationService:
             # Completed questions count
             completed_questions = next_order
             progress = min(completed_questions / 20.0, 1.0)
-            # Next question number
-            current_question_number = min(next_order + 1, 20)
+            # Next question number (1-based, max 20)
+            current_question_number = min(max(next_order, 1), 20)
 
             logger.info(
                 f"GET Progress: next_order={next_order}, completed_questions={completed_questions}, progress={progress}, question_number={current_question_number}"

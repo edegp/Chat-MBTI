@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  static const String baseUrl = kDebugMode
+      ? 'http://localhost:8000/api/v1'
+      : '/api/v1';
 
   Future<String?> _getAuthToken() async {
     final user = FirebaseAuth.instance.currentUser;

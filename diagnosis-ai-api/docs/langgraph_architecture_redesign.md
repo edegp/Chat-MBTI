@@ -156,7 +156,7 @@ class LangGraphDriver:
             "next_display_order": state["next_display_order"] + 1
         }
 
-    def run_workflow(self, user_input: str, session_id: str) -> Dict[str, Any]:
+    def run_workflow(self, user_messages: List[Message], session_id: str) -> Dict[str, Any]:
         """Execute the LangGraph workflow"""
         checkpointer = create_checkpointer()
         config = {"configurable": {"thread_id": session_id}}
@@ -165,7 +165,7 @@ class LangGraphDriver:
 
         state = {
             "session_id": session_id,
-            "messages": [Message(role="user", content=user_input)],
+            "messages": user_messages,
             "next_display_order": 0
         }
 

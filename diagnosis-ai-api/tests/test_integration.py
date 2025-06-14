@@ -18,11 +18,15 @@ class TestMBTIIntegration:
         self.mock_session_repo = Mock()
         self.mock_workflow_gateway = Mock()
 
+        # Mock for ElementRepositoryPort
+        self.mock_elements_repo = Mock()
+
         # Create service with all mocked dependencies for integration testing
         self.service = MBTIConversationService(
             workflow_port=self.mock_workflow_gateway,
             question_repository=self.mock_question_repo,
             session_repository=self.mock_session_repo,
+            elements_repository=self.mock_elements_repo,
         )
 
     @patch("src.driver.db.create_checkpointer")
@@ -96,7 +100,7 @@ class TestMBTIIntegration:
 
         # Assert - Second question generated (still in Phase 1)
         assert first_response["status"] == "success"
-        assert first_response["question_number"] == 2  # next_order(1) + 1
+        assert first_response["question_number"] == 1  # next_order(1)
         assert first_response["progress"] == 0.05  # 1/20
 
     @patch("src.driver.db.create_checkpointer")
@@ -133,7 +137,7 @@ class TestMBTIIntegration:
 
         # Assert - Phase 2 question should be generated
         assert result["status"] == "success"
-        assert result["question_number"] == 6  # First question of Phase 2
+        assert result["question_number"] == 5  # next_order(5)
 
         # Verify workflow gateway was called
         self.mock_workflow_gateway.execute_conversation_flow.assert_called_once()

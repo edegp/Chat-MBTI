@@ -9,7 +9,7 @@ from typing import Dict, Any, List
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from ..port.ports import LLMPort, QuestionRepositoryPort
+from ..port.ports import LLMPort, QuestionRepositoryPort, ElementRepositoryPort
 from ..usecase.type import ChatState, Message
 from ..usecase.utils import _organize_chat_history
 from ..driver.db import create_checkpointer
@@ -92,6 +92,7 @@ def _filter_messages_by_phase(messages: list, current_question_number: int) -> l
     logger.info(
         f"Filtering messages for phase {current_phase}: questions {phase_start_question}-{phase_end_question}"
     )
+    logger.debug(f"Current question number: {current_question_number}")
 
     # Filter messages to only include current phase
     # Count questions to determine which phase each message belongs to
@@ -102,7 +103,7 @@ def _filter_messages_by_phase(messages: list, current_question_number: int) -> l
         if msg.get("role") == "assistant":
             question_count += 1
             # Include question if it's in current phase AND we haven't reached the current question being generated
-            if phase_start_question <= question_count < current_question_number:
+            if phase_start_question <= question_count <= current_question_number:
                 filtered_messages.append(msg)
         elif (
             msg.get("role") == "user"
@@ -121,9 +122,15 @@ def _filter_messages_by_phase(messages: list, current_question_number: int) -> l
 class LangGraphDriver:
     """Driver for LangGraph workflow orchestration"""
 
-    def __init__(self, llm_port: LLMPort, question_repository: QuestionRepositoryPort):
+    def __init__(
+        self,
+        llm_port: LLMPort,
+        question_repository: QuestionRepositoryPort,
+        elements_repository: ElementRepositoryPort,
+    ):
         self.llm_port = llm_port
         self.question_repository = question_repository
+        self.elements_repository = elements_repository
         try:
             self.graph_builder = self._create_graph()
             logger.info("LangGraphDriver initialized successfully")
@@ -151,6 +158,30 @@ class LangGraphDriver:
 
     def _generate_question_node(self, state: ChatState) -> ChatState:
         """LangGraph node for question generation"""
+        logger.debug(
+            f"Entering question generation node with state: {state}",
+        )
+        # 初回のみリポジトリから質問を取得して返す
+        if state.get("next_display_order", 0) == 0:
+            question = self.elements_repository.get_initial_question(
+                state.get("personality_element_id", 1)
+            )
+            qid = self.question_repository.save_question(
+                {
+                    "session_id": state.get("session_id"),
+                    "display_order": 0,
+                    "question": question,
+                }
+            )
+            new_message = Message(role="assistant", content=question)
+            return {
+                "messages": [new_message],
+                "pending_question": question,
+                "pending_question_meta": {},
+                "session_id": state.get("session_id"),
+                "personality_element_id": state.get("personality_element_id", 1),
+                "next_display_order": 1,
+            }
         try:
             logger.info(
                 "Starting question generation",
@@ -215,6 +246,7 @@ class LangGraphDriver:
                     "next_display_order": state.get("next_display_order"),
                 },
             )
+            logger.debug(f"{new_message.role} message generated: {new_message.content}")
 
             return {
                 "messages": [new_message],
@@ -233,6 +265,9 @@ class LangGraphDriver:
                     "next_display_order": state.get("next_display_order"),
                     "error": str(e),
                 },
+            )
+            logger.error(
+                f"Error during question generation {state.get("next_display_order")}: {e}"
             )
             error.log_error(logger)
             raise error
@@ -255,6 +290,9 @@ class LangGraphDriver:
                     "Timeout during question generation", {"error": str(e)}
                 )
             else:
+                logger.error(
+                    f"LLM error during question generation {context.get('next_display_order')}: {e}"
+                )
                 raise LLMError(
                     "LLM error during question generation", {"error": str(e)}
                 )
@@ -276,12 +314,27 @@ class LangGraphDriver:
                 m.model_dump() if hasattr(m, "model_dump") else m
                 for m in state["messages"]
             ]
+            logger.debug(
+                f"Messages before filtering: {messages}",
+                extra={
+                    "session_id": state.get("session_id"),
+                    "next_display_order": state.get("next_display_order"),
+                },
+            )
             filtered_messages = _filter_messages_by_phase(
                 messages, current_question_number
             )
             messages_text = _organize_chat_history(filtered_messages)
             num_options = 3
             options_list = []
+
+            logger.debug(
+                f"Filtered messages for options generation: {filtered_messages}",
+                extra={
+                    "session_id": state.get("session_id"),
+                    "next_display_order": state.get("next_display_order"),
+                },
+            )
 
             # Generate options through port interface with retry
             for i in range(num_options):
@@ -334,7 +387,7 @@ class LangGraphDriver:
                 raise LLMError("LLM error during options generation", {"error": str(e)})
 
     def run_workflow(
-        self, user_input: str, session_id: str, user_id: str
+        self, user_messages: List[Message], session_id: str, user_id: str
     ) -> Dict[str, Any]:
         """Execute the LangGraph workflow"""
         try:
@@ -343,7 +396,7 @@ class LangGraphDriver:
                 extra={
                     "session_id": session_id,
                     "user_id": user_id,
-                    "has_user_input": bool(user_input),
+                    "has_user_input": bool(user_messages),
                 },
             )
 
@@ -371,8 +424,11 @@ class LangGraphDriver:
                 )
 
             # Create initial state or continue from existing state
-            messages = [Message(role="user", content=user_input)] if user_input else []
-
+            messages = [msg for msg in user_messages if msg.content != ""]
+            logging.debug(
+                f"User messages for workflow: {messages}",
+                extra={"session_id": session_id, "user_id": user_id},
+            )
             if existing_state and "next_display_order" in existing_state:
                 # Continue from existing state
                 current_next_order = existing_state.get("next_display_order", 0)
@@ -410,7 +466,7 @@ class LangGraphDriver:
                 state = {
                     "user_id": user_id,
                     "session_id": session_id,
-                    "messages": messages,
+                    "messages": messages,  # use only new user messages
                     "options": existing_state.get("options", []),
                     "next_display_order": current_next_order,
                     "personality_element_id": existing_state.get(
@@ -424,9 +480,6 @@ class LangGraphDriver:
                     ),
                 }
 
-                # Add filtered existing messages to current messages for context
-                if existing_messages:
-                    state["messages"] = existing_messages + messages
             else:
                 # Create fresh state for new conversation
                 logger.info("Creating new conversation state")
@@ -478,6 +531,7 @@ class LangGraphDriver:
                     "error_type": type(e).__name__,
                 },
             )
+            logger.debug(f"Unexpected error during workflow execution {e}")
             error.log_error(logger)
             raise error
 

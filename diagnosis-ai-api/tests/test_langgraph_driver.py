@@ -6,7 +6,7 @@
 import pytest
 from unittest.mock import Mock, patch
 from src.driver.langgraph_driver import LangGraphDriver, _filter_messages_by_phase
-from src.usecase.type import ChatState, Message
+from src.usecase.type import Message
 
 
 class Test_フェーズコンテキストフィルタリング:
@@ -16,7 +16,10 @@ class Test_フェーズコンテキストフィルタリング:
         """テストフィクスチャのセットアップ"""
         self.mock_llm_port = Mock()
         self.mock_question_repo = Mock()
-        self.driver = LangGraphDriver(self.mock_llm_port, self.mock_question_repo)
+        self.mock_elements_repo = Mock()
+        self.driver = LangGraphDriver(
+            self.mock_llm_port, self.mock_question_repo, self.mock_elements_repo
+        )
 
     def test_フェーズ1のメッセージフィルタリング(self):
         """フェーズ1（質問1-5）のメッセージフィルタリングをテスト"""
@@ -35,64 +38,74 @@ class Test_フェーズコンテキストフィルタリング:
         # 実行: 質問3のフィルタリング（フェーズ1に属する）
         filtered = _filter_messages_by_phase(messages, 3)
 
-        # 検証: 質問1-2とその回答を含むべき（質問3より前の質問）
-        assert len(filtered) == 4  # 2つの質問＋2つの回答
+        # 検証: 質問1-3とその回答を含むべき（フェーズ1内の質問3まで）
+        assert len(filtered) == 6  # 3つの質問＋3つの回答
         assert filtered[0]["content"] == "Question 1"
         assert filtered[1]["content"] == "Answer 1"
         assert filtered[2]["content"] == "Question 2"
         assert filtered[3]["content"] == "Answer 2"
+        assert filtered[4]["content"] == "Question 3"
+        assert filtered[5]["content"] == "Answer 3"
 
     def test_フェーズ2のメッセージフィルタリング(self):
         """フェーズ2（質問6-10）のメッセージフィルタリングをテスト"""
         # 準備: 12のメッセージを作成（6つの質問＋6つの回答）
         messages = []
-        for i in range(1, 7):
+        for i in range(
+            1, 8
+        ):  # 1-7の質問を作成（フェーズ1の質問1-5、フェーズ2の質問6-7）
             messages.append({"role": "assistant", "content": f"Question {i}"})
             messages.append({"role": "user", "content": f"Answer {i}"})
 
         # 実行: 質問7のフィルタリング（フェーズ2に属する）
         filtered = _filter_messages_by_phase(messages, 7)
 
-        # 検証: フェーズ2から質問6とその回答のみを含むべき（質問7より前のフェーズ2の質問）
-        assert len(filtered) == 2  # フェーズ2から1つの質問＋1つの回答
+        # 検証: フェーズ2から質問6-7とその回答を含むべき
+        assert len(filtered) == 4  # フェーズ2の質問6-7とその回答
         assert filtered[0]["content"] == "Question 6"
         assert filtered[1]["content"] == "Answer 6"
+        assert filtered[2]["content"] == "Question 7"
+        assert filtered[3]["content"] == "Answer 7"
 
     def test_フェーズ3のメッセージフィルタリング(self):
         """フェーズ3（質問11-15）のメッセージフィルタリングをテスト"""
         # 準備: 24のメッセージを作成（12の質問＋12の回答）
         messages = []
-        for i in range(1, 13):
+        for i in range(1, 14):  # 1-13の質問（フェーズ1,2,3の質問を含む）
             messages.append({"role": "assistant", "content": f"Question {i}"})
             messages.append({"role": "user", "content": f"Answer {i}"})
 
         # 実行: 質問13のフィルタリング（フェーズ3に属する）
         filtered = _filter_messages_by_phase(messages, 13)
 
-        # 検証: フェーズ3から質問11-12とその回答のみを含むべき（質問13より前のフェーズ3の質問）
-        assert len(filtered) == 4  # フェーズ3から2つの質問＋2つの回答
+        # 検証: フェーズ3から質問11-13とその回答を含むべき
+        assert len(filtered) == 6  # フェーズ3の質問11-13とその回答
         assert filtered[0]["content"] == "Question 11"
         assert filtered[1]["content"] == "Answer 11"
         assert filtered[2]["content"] == "Question 12"
         assert filtered[3]["content"] == "Answer 12"
+        assert filtered[4]["content"] == "Question 13"
+        assert filtered[5]["content"] == "Answer 13"
 
     def test_フェーズ4のメッセージフィルタリング(self):
         """フェーズ4（質問16-20）のメッセージフィルタリングをテスト"""
         # 準備: 34のメッセージを作成（17の質問＋17の回答）
         messages = []
-        for i in range(1, 18):  # 質問18のフィルタリングをテストするために17の質問が必要
+        for i in range(1, 19):  # 1-18の質問（フェーズ1-4の質問を含む）
             messages.append({"role": "assistant", "content": f"Question {i}"})
             messages.append({"role": "user", "content": f"Answer {i}"})
 
         # 実行: 質問18のフィルタリング（フェーズ4に属する）
         filtered = _filter_messages_by_phase(messages, 18)
 
-        # 検証: フェーズ4から質問16-17とその回答のみを含むべき（質問18より前のフェーズ4の質問）
-        assert len(filtered) == 4  # フェーズ4から2つの質問＋2つの回答
+        # 検証: フェーズ4から質問16-18とその回答を含むべき
+        assert len(filtered) == 6  # フェーズ4の質問16-18とその回答
         assert filtered[0]["content"] == "Question 16"
         assert filtered[1]["content"] == "Answer 16"
         assert filtered[2]["content"] == "Question 17"
         assert filtered[3]["content"] == "Answer 17"
+        assert filtered[4]["content"] == "Question 18"
+        assert filtered[5]["content"] == "Answer 18"
 
     def test_各フェーズの最初の質問のエッジケース(self):
         """各フェーズの最初の質問のフィルタリングをテスト"""
@@ -134,7 +147,7 @@ class Test_フェーズコンテキストフィルタリング:
         self.mock_question_repo.save_question.return_value = "q8_id"
 
         # 実行: 質問生成ノードを呼び出し
-        result = self.driver._generate_question_node(state)
+        self.driver._generate_question_node(state)  # 戻り値は使用しない
 
         # 検証: LLMはフィルタリングされたコンテキストで呼び出されるべき（質問8より前のフェーズ2のメッセージのみ）
         args, kwargs = self.mock_llm_port.generate_question.call_args
@@ -167,7 +180,7 @@ class Test_フェーズコンテキストフィルタリング:
         self.mock_llm_port.generate_options.return_value = "Option A"
 
         # 実行: 選択肢生成ノードを呼び出し
-        result = self.driver._generate_options_node(state)
+        self.driver._generate_options_node(state)  # 戻り値は使用しない
 
         # 検証: LLMはフィルタリングされたコンテキストで呼び出されるべき（質問12より前のフェーズ3のメッセージのみ）
         # generate_optionsは3つの選択肢のために3回呼び出される

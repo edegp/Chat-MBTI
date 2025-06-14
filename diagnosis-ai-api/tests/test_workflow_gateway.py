@@ -3,9 +3,10 @@
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 from src.gateway.workflow_gateway import WorkflowGateway
 from src.driver.langgraph_driver import LangGraphDriver
+from src.usecase.type import Message
 
 
 class Test_ワークフローゲートウェイ:
@@ -37,8 +38,9 @@ class Test_ワークフローゲートウェイ:
 
         # Assert
         assert result == expected_result
+        expected_message = Message(role="user", content=user_input)
         mock_langgraph_driver.run_workflow.assert_called_once_with(
-            user_input, session_id, user_id
+            [expected_message], session_id, user_id
         )
 
     def test_会話フローの実行_例外処理(self, workflow_gateway, mock_langgraph_driver):

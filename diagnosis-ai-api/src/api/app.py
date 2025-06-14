@@ -16,6 +16,11 @@ from src.exceptions import (
     create_error_response,
 )
 
+logging.basicConfig(
+    level=logging.DEBUG,  # Set to DEBUG for detailed logs
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="MBTI Chatbot API")

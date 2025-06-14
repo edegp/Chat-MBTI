@@ -24,6 +24,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   String? _error;
   bool _isCompleted = false;
   String? _completionMessage;
+  bool _isRestoringHistory = false; // 履歴復元中フラグを追加
 
   // UI transition management - show only current phase conversations
   int _currentPhase = 1; // Phase 1: Q1-5, Phase 2: Q6-10, etc.
@@ -87,8 +88,14 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         // 会話履歴を復元
         await _restoreConversationHistory();
 
-        // 現在の質問を取得するために会話を開始
-        await _startConversation();
+        // 復元後に現在の質問とオプションを取得
+        _getCurrentQuestion();
+        await _getOptions();
+
+        // Stop loading after restoration
+        setState(() {
+          _isLoading = false;
+        });
 
         // 復元メッセージを表示
         if (mounted) {
@@ -132,11 +139,15 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         _currentQuestion = data['question'];
         _sessionId = data['session_id'];
         _isLoading = false;
-        _chatHistory.add({
-          'type': 'question',
-          'text': data['question'],
-          'timestamp': DateTime.now(),
-        });
+        // Add question bubble if not duplicate
+        final qText = data['question'];
+        if (_chatHistory.isEmpty || _chatHistory.last['text'] != qText) {
+          _chatHistory.add({
+            'type': 'question',
+            'text': qText,
+            'timestamp': DateTime.now(),
+          });
+        }
       });
 
       _bubbleAnimController.forward();
@@ -165,11 +176,14 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         _currentQuestion = data['question'];
         _sessionId = data['session_id'];
         _isLoading = false;
-        _chatHistory.add({
-          'type': 'question',
-          'text': data['question'],
-          'timestamp': DateTime.now(),
-        });
+        final qText = data['question'];
+        if (_chatHistory.isEmpty || _chatHistory.last['text'] != qText) {
+          _chatHistory.add({
+            'type': 'question',
+            'text': qText,
+            'timestamp': DateTime.now(),
+          });
+        }
       });
 
       _bubbleAnimController.forward();
@@ -211,6 +225,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
     _textController.clear();
 
     try {
+      // Resume conversation by submitting the answer
       final response = await _apiService.submitAnswer(answer);
       final data = response['data'];
 
@@ -244,11 +259,14 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           _questionNumber = newQuestionNumber;
           _totalQuestions = data['total_questions'] ?? 20;
           _isLoading = false;
-          _chatHistory.add({
-            'type': 'question',
-            'text': data['question'],
-            'timestamp': DateTime.now(),
-          });
+          final qText = data['question'];
+          if (_chatHistory.isEmpty || _chatHistory.last['text'] != qText) {
+            _chatHistory.add({
+              'type': 'question',
+              'text': qText,
+              'timestamp': DateTime.now(),
+            });
+          }
         });
 
         // デバッグ用ログ
@@ -261,7 +279,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         _progressAnimController.animateTo(_progress);
 
         // 明示的にプログレス情報を再取得して更新
-        await _updateProgress();
+        // Removed redundant explicit progress refresh to prevent off-by-one
 
         await _getOptions();
         _scrollToBottom();
@@ -281,6 +299,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   // プログレス情報を明示的に更新する関数
+  // ignore: unused_element
   Future<void> _updateProgress() async {
     try {
       final progressResponse = await _apiService.getProgress();
@@ -323,45 +342,145 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
     }
   }
 
-  // 会話履歴を復元
+  // 会話履歴を復元（elementごとに順次表示）
   Future<void> _restoreConversationHistory() async {
     try {
       final historyResponse = await _apiService.getConversationHistory();
       final historyData = historyResponse['data'];
       final history = historyData['history'] as List<dynamic>;
 
-      // Filter history to only show messages from current phase
+      // Determine phase boundaries for questions
       final phaseStartIndex = (_currentPhase - 1) * 5;
       final phaseEndIndex = _currentPhase * 5;
-
-      // Only show conversations for current phase questions
-      final filteredHistory = history.where((msg) {
-        // For question-type messages, check if they belong to current phase
+      final phaseStartQuestion = phaseStartIndex + 1;
+      final phaseEndQuestion = phaseEndIndex;
+      // Build filtered history based on phase boundaries
+      final filteredHistory = <dynamic>[];
+      int questionCount = 0;
+      for (final msg in history) {
         if (msg['type'] == 'question') {
-          // Estimate question number based on position in history
-          final questionIndex = history.where((h) => h['type'] == 'question').toList().indexOf(msg);
-          return questionIndex >= phaseStartIndex && questionIndex < phaseEndIndex;
+          questionCount++;
+          if (questionCount >= phaseStartQuestion && questionCount <= phaseEndQuestion) {
+            filteredHistory.add(msg);
+          }
+        } else if (msg['type'] == 'answer' &&
+            filteredHistory.isNotEmpty &&
+            filteredHistory.last['type'] == 'question') {
+          filteredHistory.add(msg);
         }
-        // For answer-type messages, include if there's a corresponding question in this phase
-        return true; // Simplified: include all answers for now
-      }).toList();
+      }
 
-      setState(() {
-        _chatHistory = filteredHistory.map((msg) => {
-          'type': msg['type'],
-          'text': msg['text'],
-          'timestamp': DateTime.now(), // Use current time for restored messages
-        }).toList();
-      });
+      // 履歴を順次復元（elementごとに表示）
+      await _restoreHistoryStepByStep(filteredHistory);
 
-      // チャットの最下部にスクロール
-      _scrollToBottom();
     } catch (e) {
       debugPrint('Failed to restore conversation history: $e');
       // 履歴復元に失敗してもエラーにはせず、空の履歴で続行
       setState(() {
         _chatHistory = [];
       });
+    }
+  }
+
+  // 履歴を段階的に復元する関数
+  Future<void> _restoreHistoryStepByStep(List<dynamic> filteredHistory) async {
+    // 復元開始
+    setState(() {
+      _chatHistory = [];
+      _isRestoringHistory = true;
+    });
+
+    // 復元中であることをユーザーに示す
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(width: 8),
+              Text('会話を復元中...'),
+            ],
+          ),
+          backgroundColor: Colors.blue,
+          duration: Duration(milliseconds: filteredHistory.length * 600 + 1000),
+        ),
+      );
+    }
+
+    // 質問と回答をペアで順次追加
+    for (int i = 0; i < filteredHistory.length; i++) {
+      final msg = filteredHistory[i];
+
+      // メッセージタイプに応じて表示タイミングを調整
+      final isQuestion = msg['type'] == 'question';
+      final delay = isQuestion ? 800 : 400; // 質問の方を少し長く表示
+
+      // 新しいメッセージを追加
+      setState(() {
+        _chatHistory.add({
+          'type': msg['type'],
+          'text': msg['text'],
+          'timestamp': DateTime.now(),
+        });
+      });
+
+      // アニメーション効果のために待機
+      await Future.delayed(Duration(milliseconds: delay));
+
+      // バブルアニメーションを再生
+      _bubbleAnimController.reset();
+      _bubbleAnimController.forward();
+
+      // スクロールを最下部に移動
+      _scrollToBottom();
+
+      // 次の要素がある場合は少し間隔を空ける
+      if (i < filteredHistory.length - 1) {
+        // 質問の後は回答を待つ感じで少し長めの間隔
+        final nextMsg = filteredHistory[i + 1];
+        final isNextAnswer = nextMsg['type'] == 'answer';
+        final waitTime = (isQuestion && isNextAnswer) ? 300 : 200;
+        await Future.delayed(Duration(milliseconds: waitTime));
+      }
+    }
+
+    // 復元完了
+    setState(() {
+      _isRestoringHistory = false;
+    });
+
+    // 復元完了メッセージ
+    if (mounted && filteredHistory.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('会話の復元が完了しました'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // 現在の質問のみを取得する関数（新しい会話を開始しない）
+  void _getCurrentQuestion() {
+    if (_chatHistory.isNotEmpty) {
+      // Find last question bubble in history
+      final lastQuestion = _chatHistory.lastWhere(
+        (m) => m['type'] == 'question',
+        orElse: () => {},
+      );
+      if (lastQuestion.isNotEmpty && lastQuestion.containsKey('text')) {
+        setState(() {
+          _currentQuestion = lastQuestion['text'] as String;
+        });
+      }
     }
   }
 
@@ -444,8 +563,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   Widget _buildChatView() {
     return Column(
       children: [
-        // 進捗バー（コンパクト版）
-        _buildCompactProgressBar(),
+        // 進捗バー（復元中は復元状態を表示）
+        _isRestoringHistory ? _buildRestoringProgressBar() : _buildCompactProgressBar(),
 
         // チャット履歴エリア（より広く）
         Expanded(
@@ -483,16 +602,19 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                 // エラー表示
                 if (_error != null) _buildErrorView(),
 
-                // 回答オプション
-                if (_currentQuestion != null && _currentOptions.isNotEmpty && !_isLoading)
+                // 回答オプション（復元中は非表示）
+                if (_currentQuestion != null && _currentOptions.isNotEmpty && !_isLoading && !_isRestoringHistory)
                   _buildOptions(),
 
-                // 入力エリア
-                if (_currentQuestion != null && !_isLoading)
+                // 入力エリア（復元中は非表示）
+                if (_currentQuestion != null && !_isLoading && !_isRestoringHistory)
                   _buildInputArea(),
 
                 // ローディング
                 if (_isLoading) _buildLoading(),
+
+                // 履歴復元中インジケーター
+                if (_isRestoringHistory) _buildRestoringIndicator(),
               ],
             ),
           ),
@@ -582,17 +704,117 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
     );
   }
 
+  Widget _buildRestoringProgressBar() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Phase $_currentPhase - 復元中',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                  Text(
+                    '会話履歴を復元しています...',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.blue[800],
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue[600],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      '復元中',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 6,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(3),
+              color: Colors.blue[100],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Colors.blue[600]!,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildChatBubble(Map<String, dynamic> message, int index) {
     final isQuestion = message['type'] == 'question';
     final text = message['text'] as String;
 
     return AnimatedContainer(
-      duration: Duration(milliseconds: 300 + (index * 100)),
+      duration: Duration(milliseconds: 300 + (index * 50)),
       curve: Curves.easeOut,
       margin: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: AnimatedOpacity(
+        duration: Duration(milliseconds: 400 + (index * 50)),
+        opacity: 1.0,
+        child: Transform.translate(
+          offset: Offset(0, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           if (isQuestion) ...[
             // AI診断アバター
             Container(
@@ -675,6 +897,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
             ),
           ],
         ],
+      ),
+        ),
       ),
     );
   }
@@ -997,6 +1221,33 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRestoringIndicator() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            '会話を復元中です...',
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 16,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -90,9 +90,29 @@ class SessionRepositoryPort(ABC):
         pass
 
 
+class ElementRepositoryPort(ABC):
+    """Abstract interface for element data operations"""
+
+    @abstractmethod
+    def get_element_info(self, element_id: str) -> Dict[str, Any]:
+        """Get information about a personality element"""
+        pass
+
+    @abstractmethod
+    def get_elements(self) -> List[Dict[str, Any]]:
+        """Get all personality elements"""
+        pass
+
+    @abstractmethod
+    def get_initial_question(self, element_id: str) -> Dict[str, Any]:
+        """Get initial question for a personality element"""
+        pass
+
+
 __all__ = [
     "LLMPort",
     "WorkflowPort",
     "QuestionRepositoryPort",
     "SessionRepositoryPort",
+    "ElementRepositoryPort",
 ]
