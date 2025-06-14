@@ -6,9 +6,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'flutter_ui/**'
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./flutter_ui
     steps:
       - uses: actions/checkout@v4
 
