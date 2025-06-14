@@ -6,6 +6,7 @@ This layer adapts the LangGraph driver to the workflow port interface.
 from typing import Dict, Any, List
 from ..port.ports import WorkflowPort
 from ..driver.langgraph_driver import LangGraphDriver
+from ..usecase.type import Message
 
 
 class WorkflowGateway(WorkflowPort):
@@ -19,7 +20,9 @@ class WorkflowGateway(WorkflowPort):
     ) -> Dict[str, Any]:
         """Execute the conversation workflow and return results"""
         try:
-            return self.driver.run_workflow(user_input, session_id, user_id)
+            # wrap raw user input into a single Message for the workflow
+            messages = [Message(role="user", content=user_input)]
+            return self.driver.run_workflow(messages, session_id, user_id)
         except Exception as e:
             raise RuntimeError(f"Failed to execute conversation flow: {str(e)}")
 

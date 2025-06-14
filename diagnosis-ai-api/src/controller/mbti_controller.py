@@ -10,6 +10,7 @@ from ..gateway.llm_gateway import LLMGateway
 from ..gateway.repository_gateway import (
     QuestionRepositoryGateway,
     SessionRepositoryGateway,
+    ElementRepositoryGateway,
 )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Depends
@@ -25,6 +26,7 @@ from ..exceptions import (
     InvalidInputError,
     create_error_response,
 )
+from .type import StartConversationRequest, ProcessUserResponseRequest
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +39,12 @@ class MBTIController:
     def __init__(self, mbti_service: MBTIConversationService):
         self.mbti_service = mbti_service
 
-    async def start_conversation(self, request) -> Dict[str, Any]:
+    async def start_conversation(
+        self, request: StartConversationRequest
+    ) -> Dict[str, Any]:
         """Start MBTI conversation endpoint"""
         user_id = request.user_id
+
         logger.info(f"Starting conversation for user: {user_id}")
 
         if not user_id:
@@ -52,6 +57,9 @@ class MBTIController:
             logger.info(f"Conversation started successfully for user: {user_id}")
             return result
         except MBTIApplicationError as e:
+            logger.error(
+                f"MBTIApplicationError while starting conversation for user {user_id}: {e}"
+            )
             e.log_error(logger)
             return create_error_response(e)
         except Exception as e:
@@ -61,10 +69,13 @@ class MBTIController:
             error = MBTIApplicationError("Internal server error")
             return create_error_response(error)
 
-    async def process_user_response(self, request) -> Dict[str, Any]:
+    async def process_user_response(
+        self, request: ProcessUserResponseRequest
+    ) -> Dict[str, Any]:
         """Process user response endpoint"""
-        user_id = request.user_id
+        # Extract fields from request
         user_input = request.user_input
+        user_id = request.user_id
         logger.info(f"Processing response for user: {user_id}")
 
         if not user_id:
@@ -264,10 +275,9 @@ def get_mbti_controller() -> MBTIController:
     llm_gateway = LLMGateway()
     question_repo = QuestionRepositoryGateway()
     session_repo = SessionRepositoryGateway()
+    elements_repo = ElementRepositoryGateway()
 
-    # Create LangGraph driver
-    langgraph_driver = LangGraphDriver(llm_gateway, question_repo)
-
+    langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo)
     # Create workflow gateway
     workflow_gateway = WorkflowGateway(langgraph_driver)
 
@@ -276,6 +286,7 @@ def get_mbti_controller() -> MBTIController:
         workflow_port=workflow_gateway,
         question_repository=question_repo,
         session_repository=session_repo,
+        elements_repository=elements_repo,
     )
 
     # Create controller

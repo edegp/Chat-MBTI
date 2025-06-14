@@ -8,11 +8,13 @@ from src.port.ports import (
     WorkflowPort,
     QuestionRepositoryPort,
     SessionRepositoryPort,
+    ElementsRepositoryPort,
 )
 from src.gateway.llm_gateway import LLMGateway
 from src.gateway.repository_gateway import (
     QuestionRepositoryGateway,
     SessionRepositoryGateway,
+    ElementRepositoryGateway,
 )
 from src.gateway.workflow_gateway import WorkflowGateway
 from src.driver.langgraph_driver import LangGraphDriver
@@ -44,12 +46,19 @@ class DIContainer:
             self._instances["session_repository_port"] = SessionRepositoryGateway()
         return self._instances["session_repository_port"]
 
+    def get_elements_repository_port(self) -> ElementsRepositoryPort:
+        """Get elements repository port instance"""
+        if "elements_repository_port" not in self._instances:
+            self._instances["elements_repository_port"] = ElementRepositoryGateway()
+        return self._instances["elements_repository_port"]
+
     def get_langgraph_driver(self) -> LangGraphDriver:
         """Get LangGraph driver instance"""
         if "langgraph_driver" not in self._instances:
             self._instances["langgraph_driver"] = LangGraphDriver(
                 llm_port=self.get_llm_port(),
                 question_repository=self.get_question_repository_port(),
+                elements_repository=self.get_elements_repository_port(),
             )
         return self._instances["langgraph_driver"]
 
@@ -68,6 +77,7 @@ class DIContainer:
                 workflow_port=self.get_workflow_port(),
                 question_repository=self.get_question_repository_port(),
                 session_repository=self.get_session_repository_port(),
+                elements_repository=self.get_elements_repository_port(),
             )
         return self._instances["mbti_service"]
 
