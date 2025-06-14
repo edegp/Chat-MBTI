@@ -28,14 +28,18 @@ from src.exceptions import (
 test_app = FastAPI()
 
 try:
-    from api.router import router
-    from api.app import app
+    from src.api.router import router
+    from src.api.app import app
     from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
     # Use the main app but we'll override dependencies
     client = TestClient(app)
 except ImportError:
     # テスト環境でインポートエラーが発生する場合のダミーアプリ
+    # router が定義されていない場合はダミーのルーターを作成
+    from fastapi import APIRouter
+
+    router = APIRouter()
     test_app.include_router(router)
     client = TestClient(test_app)
 
@@ -43,8 +47,19 @@ except ImportError:
 @pytest.fixture
 def test_client():
     """テスト用のクライアントを作成"""
-    from api.app import app
-    from src.controller.mbti_controller import get_current_user, get_mbti_controller
+    try:
+        from src.api.app import app
+        from src.controller.mbti_controller import get_current_user, get_mbti_controller
+    except ImportError:
+        from fastapi import FastAPI
+
+        app = FastAPI()
+
+        def get_current_user():
+            pass
+
+        def get_mbti_controller():
+            pass
 
     # Mock dependencies
     def mock_get_current_user():
@@ -96,7 +111,7 @@ class TestAPIErrorHandling:
 
     def test_authentication_error_returns_401(self, test_client):
         """認証エラーが401ステータスコードを返すことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user
 
         # Override with an error-raising mock
@@ -115,7 +130,7 @@ class TestAPIErrorHandling:
 
     def test_authorization_error_returns_403(self, test_client):
         """認可エラーが403ステータスコードを返すことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with mocks that raise exceptions
@@ -144,7 +159,7 @@ class TestAPIErrorHandling:
 
     def test_session_not_found_returns_404(self, test_client):
         """セッション未発見エラーが404ステータスコードを返すことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with mocks that raise exceptions
@@ -173,7 +188,7 @@ class TestAPIErrorHandling:
 
     def test_database_error_returns_500(self, test_client):
         """データベースエラーが500ステータスコードを返すことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with mocks that raise exceptions
@@ -202,7 +217,7 @@ class TestAPIErrorHandling:
 
     def test_llm_error_returns_503(self, test_client):
         """LLMエラーが503ステータスコードを返すことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with mocks that raise exceptions
@@ -231,7 +246,7 @@ class TestAPIErrorHandling:
 
     def test_validation_error_returns_400(self, test_client):
         """バリデーションエラーが400ステータスコードを返すことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with mocks that raise exceptions
@@ -262,7 +277,7 @@ class TestAPIErrorHandling:
 
     def test_empty_answer_validation(self, test_client):
         """空の回答のバリデーションテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with basic mocks
@@ -285,7 +300,7 @@ class TestAPIErrorHandling:
 
     def test_missing_user_id_validation(self, test_client):
         """ユーザーID不足のバリデーションテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with missing uid mock
@@ -308,7 +323,7 @@ class TestAPIErrorHandling:
 
     def test_successful_request_with_info_logging(self, test_client):
         """成功リクエストでinfoログが出力されることをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with successful mocks
@@ -356,7 +371,7 @@ class TestErrorResponseFormat:
 
     def test_error_response_has_required_fields(self, test_client):
         """エラーレスポンスが必要なフィールドを含むことをテスト"""
-        from api.app import app
+        from src.api.app import app
         from src.controller.mbti_controller import get_current_user, get_mbti_controller
 
         # Override with mocks that raise exceptions

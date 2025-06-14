@@ -6,7 +6,7 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "chat-mbti", // Cloud Run サービス名
+          "serviceId": "chat-mbti",
           "region": "asia-northeast1"
         }
       },

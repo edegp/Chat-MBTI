@@ -89,7 +89,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         await _restoreConversationHistory();
 
         // 復元後に現在の質問とオプションを取得
-        await _getCurrentQuestion();
+        _getCurrentQuestion();
         await _getOptions();
 
         // Stop loading after restoration
@@ -279,7 +279,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         _progressAnimController.animateTo(_progress);
 
         // 明示的にプログレス情報を再取得して更新
-        // Removed redundant explicit progress refresh to avoid off-by-one
+        // Removed redundant explicit progress refresh to prevent off-by-one
 
         await _getOptions();
         _scrollToBottom();
@@ -299,6 +299,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   // プログレス情報を明示的に更新する関数
+  // ignore: unused_element
   Future<void> _updateProgress() async {
     try {
       final progressResponse = await _apiService.getProgress();
@@ -468,22 +469,18 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   // 現在の質問のみを取得する関数（新しい会話を開始しない）
-  Future<void> _getCurrentQuestion() async {
-    try {
-
-      final response = await _apiService.startConversation();
-      final data = response['data'];
-
-      setState(() {
-        _currentQuestion = data['question'];
-        if (_sessionId == null) {
-          _sessionId = data['session_id'];
-        }
-      });
-    } catch (e) {
-      debugPrint('Failed to get current question: $e');
-      // エラーの場合は新しい会話を開始
-      await _startConversation();
+  void _getCurrentQuestion() {
+    if (_chatHistory.isNotEmpty) {
+      // Find last question bubble in history
+      final lastQuestion = _chatHistory.lastWhere(
+        (m) => m['type'] == 'question',
+        orElse: () => {},
+      );
+      if (lastQuestion.isNotEmpty && lastQuestion.containsKey('text')) {
+        setState(() {
+          _currentQuestion = lastQuestion['text'] as String;
+        });
+      }
     }
   }
 

@@ -178,11 +178,11 @@ class MBTIConversationService:
 
                 # Progress calculation: completed questions / total questions
                 # Adjust question index since next_order reflects next_display_order after generation
-                question_index = max(next_order - 1, 0)
+                question_index = max(next_order, 0)
                 completed_questions = question_index
                 progress = min(completed_questions / 20.0, 1.0)
                 # Question number to display for the upcoming question
-                current_question_number = min(question_index + 1, 20)
+                current_question_number = min(max(next_order, 1), 20)
 
                 logger.info(
                     "User response processed successfully",
@@ -316,8 +316,11 @@ class MBTIConversationService:
             if not session_id:
                 return {
                     "progress": 0.0,
-                    "message": "No active session found",
+                    "question_number": 1,
+                    "total_questions": 20,
+                    "session_id": None,
                     "status": "error",
+                    "message": "No active session found",
                 }
 
             current_state = self.workflow.get_conversation_state(session_id)
@@ -325,8 +328,8 @@ class MBTIConversationService:
             # Completed questions count
             completed_questions = next_order
             progress = min(completed_questions / 20.0, 1.0)
-            # Next question number
-            current_question_number = min(next_order, 20)
+            # Next question number (1-based, max 20)
+            current_question_number = min(max(next_order, 1), 20)
 
             logger.info(
                 f"GET Progress: next_order={next_order}, completed_questions={completed_questions}, progress={progress}, question_number={current_question_number}"
