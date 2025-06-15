@@ -6,6 +6,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from contextlib import _GeneratorContextManager
 import psycopg2
 import psycopg2.extras
+import os
 
 from src.exceptions import (
     ConnectionError,
@@ -106,25 +107,61 @@ CREATE INDEX IF NOT EXISTS user_answers_session_x ON user_answers(question_id);
 # UUIDアダプターを登録（ファイルの先頭に追加）
 psycopg2.extras.register_uuid()
 
+# Environment variables for secure DB user management
+try:
+    # Application user credentials must be set via environment (e.g., Secret Manager)
+    APP_DB_USER = os.environ["DB_APP_USER"]
+    APP_DB_PASS = os.environ["DB_APP_PASS"]
+except KeyError as e:
+    raise RuntimeError(
+        f"Required environment variable {e.args[0]} not set for application DB user"
+    )
+
+try:
+    # Admin (superuser) credentials for role setup
+    ADMIN_DB_USER = os.environ["DB_ADMIN_USER"]
+    ADMIN_DB_PASS = os.environ["DB_ADMIN_PASS"]
+except KeyError as e:
+    raise RuntimeError(
+        f"Required environment variable {e.args[0]} not set for admin DB user"
+    )
+
 
 def get_dsn() -> str:
+    # Read database name and use application user credentials
+    db_name = os.getenv("DB_NAME", "diagnosis_ai")
+    db_user = APP_DB_USER
+    db_pass = APP_DB_PASS
+    socket_path = os.getenv("DB_SOCKET_PATH")
+    if socket_path is not None:
+        logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
+        return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={socket_path}"
+
+    # Use custom host if provided (e.g., Cloud Run TCP or other env)
+    db_host = os.environ.get("DB_HOST")
+    if db_host:
+        logger.info(
+            "Connecting via DB_HOST environment variable", extra={"host": db_host}
+        )
+        return (
+            f"postgresql://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=disable"
+        )
+
+    # Fallback to Docker 'db' hostname or localhost
     try:
-        # Check if "db" hostname is resolvable (Docker environment)
         socket.gethostbyname("db")
         host = "db"
         logger.info(
             "Connecting to database in Docker environment", extra={"host": host}
         )
     except socket.gaierror as e:
-        # If not, assume local development
         host = "localhost"
         logger.info(
             "Database connection fallback to local development",
             extra={"host": host, "reason": str(e)},
         )
 
-    dsn = f"postgresql://postgres:postgres@{host}:5432/diagnosis_ai?sslmode=disable"
-    return dsn
+    return f"postgresql://{db_user}:{db_pass}@{host}:5432/{db_name}?sslmode=disable"
 
 
 DB_URI = get_dsn()
@@ -132,6 +169,32 @@ DB_URI = get_dsn()
 
 def init_postgres(dsn: str = DB_URI):
     """スキーマを作成する（idempotent）。"""
+    # Local environment: create DB user/role if missing (only for local development)
+    if not os.getenv("DB_SOCKET_PATH") and not os.getenv("DB_HOST"):
+        try:
+            # Connect as superuser to set up local app user
+            with psycopg2.connect(dsn) as admin_conn:
+                with admin_conn.cursor() as cur_admin:
+                    cur_admin.execute(
+                        f"CREATE ROLE IF NOT EXISTS {APP_DB_USER} LOGIN PASSWORD %s;",
+                        (APP_DB_PASS,),
+                    )
+                    cur_admin.execute(
+                        f"GRANT CONNECT ON DATABASE {os.getenv('DB_NAME', 'diagnosis_ai')} TO {APP_DB_USER};"
+                    )
+                    cur_admin.execute(f"GRANT USAGE ON SCHEMA public TO {APP_DB_USER};")
+                    cur_admin.execute(
+                        f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APP_DB_USER};"
+                    )
+                    cur_admin.execute(
+                        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {APP_DB_USER};"
+                    )
+            logger.info("Local DB user ensured", extra={"app_user": APP_DB_USER})
+        except Exception as e:
+            logger.warning(
+                "Local DB user setup skipped or failed", extra={"error": str(e)}
+            )
+
     try:
         logger.info("Initializing PostgreSQL schema", extra={"dsn": dsn})
         with psycopg2.connect(dsn) as conn:

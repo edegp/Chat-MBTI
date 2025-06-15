@@ -24,6 +24,10 @@ COPY uv.lock ./
 RUN uv sync
 RUN uv pip install -e .
 
+
+ENV SQL_CONNECTION_NAME=$(gcloud sql instances describe mbti-diagnosis-api-postgres --format="value(connectionName)")
+ENV DB_SOCKET_PATH="/cloudsql/${SQL_CONNECTION_NAME}"
+
 COPY . .
 
 # Expose the port
