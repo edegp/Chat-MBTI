@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_ui/firebase_options.dart';
+import 'package:url_strategy/url_strategy.dart';
 
 import 'chat_page_friendly.dart';
 import 'data_collection_page.dart';
@@ -10,6 +11,8 @@ import 'home.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Remove '#' from Flutter web URL
+  setPathUrlStrategy();
 
   try {
     await Firebase.initializeApp(
