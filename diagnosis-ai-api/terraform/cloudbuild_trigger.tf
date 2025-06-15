@@ -24,10 +24,8 @@ resource "google_project_iam_member" "cloudbuild_logging_viewer" {
   member  = "serviceAccount:${google_service_account.cloud_build_sa.email}"
 }
 
-
 resource "google_cloudbuild_trigger" "mbti-diagnosis-api-github-trigger" {
-  name     = "mbti-diagnosis-api-github-trigger"
-  location = var.region
+  name = "mbti-diagnosis-api-github-trigger"
 
   github {
     owner = var.github_owner
@@ -41,7 +39,7 @@ resource "google_cloudbuild_trigger" "mbti-diagnosis-api-github-trigger" {
   ignored_files  = ["README.md", "docs/**"]
 
   filename        = "diagnosis-ai-api/terraform/yaml/cloudbuild.yaml"
-  service_account = google_service_account.cloud_build_sa.email
+  service_account = google_service_account.cloud_build_sa.id
 
   substitutions = {
     _AR_HOSTNAME   = var.ar_hostname
@@ -49,7 +47,7 @@ resource "google_cloudbuild_trigger" "mbti-diagnosis-api-github-trigger" {
     _AR_REPOSITORY = var.ar_repository
     _SERVICE_NAME  = var.app_name
     _DEPLOY_REGION = var.region
-    _REPO_NAME     = var.github_repo
+    REPO_NAME      = lower(var.github_repo)
   }
 
   depends_on = [
