@@ -169,7 +169,6 @@ DB_URI = get_dsn()
 
 def init_postgres(dsn: str = DB_URI):
     """スキーマを作成する（idempotent）。"""
-    # Local environment: create DB user/role if missing (only for local development)
     if not os.getenv("DB_SOCKET_PATH") and not os.getenv("DB_HOST"):
         try:
             # Connect as superuser to set up local app user

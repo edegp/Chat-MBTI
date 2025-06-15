@@ -19,6 +19,10 @@ on:
 
 env:
   PYTHON_VERSION: '3.12'
+  DB_APP_USER: postgres
+  DB_APP_PASS: postgres
+  DB_ADMIN_USER: postgres
+  DB_ADMIN_PASS: postgres
 
 jobs:
   test-api:
@@ -51,8 +55,8 @@ jobs:
       - name: Run tests with pytest
         id: test
         env:
-          GEMINI_API_KEY: test-api-key-for-testing  # Mock API key for testing
-          DATABASE_URL: postgresql://test:test@localhost:5432/test  # Mock DB URL for testing
+          GEMINI_API_KEY: test-api-key-for-testing # Mock API key for testing
+          DATABASE_URL: postgresql://test:test@localhost:5432/test # Mock DB URL for testing
         run: |
           uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --tb=short
 
