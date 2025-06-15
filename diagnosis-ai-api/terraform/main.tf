@@ -44,25 +44,7 @@ resource "google_artifact_registry_repository" "main" {
 }
 
 
-# Service account for Cloud Run
-resource "google_service_account" "cloud_run_sa" {
-  account_id   = "${var.app_name}-cloud-run"
-  display_name = "Cloud Run Service Account for ${var.app_name}"
-}
-
-# Grant necessary permissions to the service account
-resource "google_project_iam_member" "cloud_run_sa_permissions" {
-  for_each = toset([
-    "roles/secretmanager.secretAccessor",
-    "roles/cloudsql.client",
-    "roles/firebase.admin"
-  ])
-
-  project = var.project_id
-  role    = each.value
-  member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
-}
-
+#
 # Import existing Cloud Run service instead of creating new one
 # The actual Cloud Run service "chat-mbti" will be managed externally
 # We only manage the infrastructure it depends on (SQL, secrets, etc.)

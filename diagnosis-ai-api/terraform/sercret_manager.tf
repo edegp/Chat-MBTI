@@ -1,10 +1,13 @@
 resource "google_secret_manager_secret" "cloudsql_connection_name" {
-  secret_id = "cloudsql_connection_name"
+  secret_id = "${var.app_name}-cloudsql-connection-name"
   replication {
     auto {}
   }
 }
-
+resource "google_secret_manager_secret_version" "cloudsql_connection_name" {
+  secret      = google_secret_manager_secret.cloudsql_connection_name.id
+  secret_data = google_sql_database_instance.postgres.connection_name
+}
 resource "google_secret_manager_secret_version" "gemini_api_key" {
   secret      = google_secret_manager_secret.gemini_api_key.id
   secret_data = var.gemini_api_key
@@ -20,13 +23,9 @@ resource "google_secret_manager_secret" "gemini_api_key" {
   depends_on = [google_project_service.required_apis]
 }
 
-resource "google_secret_manager_secret_version" "cloudsql_connection_name" {
-  secret      = google_secret_manager_secret.cloudsql_connection_name.id
-  secret_data = google_sql_database_instance.postgres.connection_name
-}
 
 resource "google_secret_manager_secret" "db_app_user" {
-  secret_id = "db-app-user"
+  secret_id = "${var.app_name}-db-app-user"
   replication {
     auto {}
   }
@@ -37,7 +36,7 @@ resource "google_secret_manager_secret_version" "db_app_user" {
 }
 
 resource "google_secret_manager_secret" "db_app_pass" {
-  secret_id = "db-app-pass"
+  secret_id = "${var.app_name}-db-app-pass"
   replication {
     auto {}
   }
@@ -47,7 +46,7 @@ resource "google_secret_manager_secret_version" "db_app_pass" {
   secret_data = random_password.db_app_pass.result
 }
 resource "google_secret_manager_secret" "db_admin_user" {
-  secret_id = "db-admin-user"
+  secret_id = "${var.app_name}-db-admin-user"
   replication {
     auto {}
   }
@@ -58,7 +57,7 @@ resource "google_secret_manager_secret_version" "db_admin_user" {
 }
 
 resource "google_secret_manager_secret" "db_admin_pass" {
-  secret_id = "db-admin-pass"
+  secret_id = "${var.app_name}-db-admin-pass"
   replication {
     auto {}
   }

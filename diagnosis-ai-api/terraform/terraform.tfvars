@@ -14,6 +14,5 @@ gemini_api_key = "AIzaSyDM58NqkGydvxHXum0PfrUCFg4W8JsM5m4"
 
 github_owner = "edegp"  # 例: edegp
 github_repo  = "Chat-MBTI"
-github_branch = "main"
 ar_hostname = "asia-northeast1-docker.pkg.dev"
 ar_repository = "cloud-run-source-deploy"
