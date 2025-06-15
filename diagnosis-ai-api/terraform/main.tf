@@ -43,16 +43,3 @@ resource "google_artifact_registry_repository" "main" {
   depends_on = [google_project_service.required_apis]
 }
 
-
-#
-# Import existing Cloud Run service instead of creating new one
-# The actual Cloud Run service "chat-mbti" will be managed externally
-# We only manage the infrastructure it depends on (SQL, secrets, etc.)
-
-# Make the service publicly accessible
-resource "google_cloud_run_v2_service_iam_member" "public_access" {
-  name     = "chat-mbti"
-  location = var.region
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}

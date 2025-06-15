@@ -24,6 +24,13 @@ resource "google_project_iam_member" "cloudbuild_logging_viewer" {
   member  = "serviceAccount:${google_service_account.cloud_build_sa.email}"
 }
 
+# Grant Cloud Run admin permissions to the build SA so it can update services
+resource "google_project_iam_member" "cloud_build_sa_run_admin" {
+  project = var.project_id
+  role    = "roles/run.admin"
+  member  = "serviceAccount:${google_service_account.cloud_build_sa.email}"
+}
+
 resource "google_cloudbuild_trigger" "mbti-diagnosis-api-github-trigger" {
   name = "mbti-diagnosis-api-github-trigger"
 

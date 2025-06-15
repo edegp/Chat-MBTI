@@ -1,3 +1,10 @@
+# Make the service publicly accessible
+resource "google_cloud_run_v2_service_iam_member" "public_access" {
+  name     = var.app_name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
 # Service account for Cloud Run
 resource "google_service_account" "cloud_run_sa" {
   account_id   = "${var.app_name}-cloud-run"
@@ -16,6 +23,12 @@ resource "google_project_iam_member" "cloud_run_sa_permissions" {
   member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
+# Allow Cloud Build SA to act as Cloud Run SA for deployments
+resource "google_service_account_iam_member" "cloud_run_sa_act_as" {
+  service_account_id = google_service_account.cloud_run_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.cloud_build_sa.email}"
+}
 
 resource "google_cloud_run_v2_service" "main" {
   name     = var.app_name
@@ -24,14 +37,14 @@ resource "google_cloud_run_v2_service" "main" {
 
   template {
     containers {
-      image = "asia-northeast1-docker.pkg.dev/chat-mbti-458210/cloud-run-source-deploy/chat-mbti/chat-mbti:latest"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/cloud-run-source-deploy/${lower(var.github_repo)}/${var.app_name}:latest"
       ports {
         name           = "http1"
         container_port = 8000
       }
       env {
         name  = "GOOGLE_CLOUD_PROJECT"
-        value = "chat-mbti-458210"
+        value = var.project_id
       }
       env {
         name  = "LANGSMITH_TRACING"
