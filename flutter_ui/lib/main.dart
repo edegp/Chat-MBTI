@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_ui/firebase_options.dart';
 
 import 'chat_page_friendly.dart';
+import 'data_collection_page.dart';
 import 'auth_guard.dart';
 import 'package:flutter/material.dart';
 import 'home.dart';
@@ -34,10 +35,11 @@ class MyApp extends StatelessWidget {
         fontFamily: 'NotoSansJP', // 日本語フォント推奨
         scaffoldBackgroundColor: const Color(0xFFFAF9F6), // クリーム色
       ),
-      initialRoute: "/",
+      initialRoute: "/data-collection",
       routes: {
         '/': (ctx) => const LoginPage(),
         '/chat': (ctx) => const AuthGuard(child: FriendlyChatPage()),
+        '/data-collection': (ctx) => const DataCollectionPage(),
         // '/resetpassword': (ctx) => const ResetPasswordPage(),
       },
     );

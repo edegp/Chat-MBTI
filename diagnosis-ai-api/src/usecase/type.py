@@ -37,6 +37,7 @@ def get_initial_state(
     user_id: str,
     session_id: str,
     messages: List[Message] = None,
+    personality_element_id: int = 1,
 ) -> ChatState:
     """Initialize a new chat state"""
     if messages is None:
@@ -48,7 +49,7 @@ def get_initial_state(
         phase="ask",
         messages=messages,
         answers={},
-        personality_element_id=1,
+        personality_element_id=personality_element_id,
         next_display_order=0,
         pending_question=None,
         pending_question_meta=None,

@@ -77,17 +77,19 @@ def retry_on_llm_error(func):
     return wrapper
 
 
-def _filter_messages_by_phase(messages: list, current_question_number: int) -> list:
-    """Filter messages to only include those from the current phase (5 questions per phase)"""
+def _filter_messages_by_phase(
+    messages: list, current_question_number: int, questions_per_phase: int = 5
+) -> list:
+    """Filter messages to only include those from the current phase"""
     if current_question_number <= 0:
         return []
 
     # Calculate current phase (1-based)
-    current_phase = ((current_question_number - 1) // 5) + 1
+    current_phase = ((current_question_number - 1) // questions_per_phase) + 1
 
     # Calculate phase boundaries
-    phase_start_question = (current_phase - 1) * 5 + 1  # 1, 6, 11, 16
-    phase_end_question = current_phase * 5  # 5, 10, 15, 20
+    phase_start_question = (current_phase - 1) * questions_per_phase + 1
+    phase_end_question = current_phase * questions_per_phase
 
     logger.info(
         f"Filtering messages for phase {current_phase}: questions {phase_start_question}-{phase_end_question}"
@@ -127,10 +129,12 @@ class LangGraphDriver:
         llm_port: LLMPort,
         question_repository: QuestionRepositoryPort,
         elements_repository: ElementRepositoryPort,
+        questions_per_phase: int = 5,  # Configurable for different use cases
     ):
         self.llm_port = llm_port
         self.question_repository = question_repository
         self.elements_repository = elements_repository
+        self.questions_per_phase = questions_per_phase  # Store configuration
         try:
             self.graph_builder = self._create_graph()
             logger.info("LangGraphDriver initialized successfully")
@@ -161,26 +165,65 @@ class LangGraphDriver:
         logger.debug(
             f"Entering question generation node with state: {state}",
         )
-        # 初回のみリポジトリから質問を取得して返す
-        if state.get("next_display_order", 0) == 0:
-            question = self.elements_repository.get_initial_question(
-                state.get("personality_element_id", 1)
-            )
+
+        current_order = state.get("next_display_order", 0)
+
+        # Check if this is the first question of any phase (initial or new element set)
+        is_first_question_of_phase = current_order == 0 or (
+            current_order % self.questions_per_phase == 0
+        )
+
+        # Use initial_questions for the first question of each element set
+        if is_first_question_of_phase:
+            # For data collection mode with 10 questions per phase, calculate correct element ID
+            if self.questions_per_phase == 10:
+                # Calculate correct element ID based on current order for data collection
+                # current_order 0: Element 1, current_order 10: Element 2, etc.
+                element_id = ((current_order // self.questions_per_phase) % 4) + 1
+                logger.info(
+                    f"Data collection mode: current_order={current_order}, calculated element_id={element_id}"
+                )
+            else:
+                # Standard mode: use the element ID from state
+                element_id = state.get("personality_element_id", 1)
+
+            question = self.elements_repository.get_initial_question(element_id)
             qid = self.question_repository.save_question(
                 {
                     "session_id": state.get("session_id"),
-                    "display_order": 0,
+                    "display_order": current_order,
                     "question": question,
+                    "personality_element_id": element_id,  # Use calculated element_id
+                    "model_version": "gemini-2.0-flash",
                 }
             )
             new_message = Message(role="assistant", content=question)
+
+            logger.info(
+                "Initial question selected from element.yaml",
+                extra={
+                    "session_id": state.get("session_id"),
+                    "question_id": str(qid),
+                    "next_display_order": current_order,
+                    "personality_element_id": element_id,  # Use calculated element_id
+                    "is_first_question": True,
+                    "calculated_element_id": element_id,  # Add for debugging
+                },
+            )
+
+            logger.debug(
+                f"[DEBUG] Initial question selection: current_order={current_order}, "
+                f"element_id (calculated)={element_id}, "
+                f"state.personality_element_id={state.get('personality_element_id')}"
+            )
+
             return {
                 "messages": [new_message],
                 "pending_question": question,
-                "pending_question_meta": {},
+                "pending_question_meta": {"model_version": "gemini-2.0-flash"},
                 "session_id": state.get("session_id"),
-                "personality_element_id": state.get("personality_element_id", 1),
-                "next_display_order": 1,
+                "personality_element_id": element_id,  # Use calculated element_id
+                "next_display_order": current_order + 1,
             }
         try:
             logger.info(
@@ -203,10 +246,10 @@ class LangGraphDriver:
                 answer_text = state["messages"][-1].content
                 state["answers"][order] = answer_text
 
-            # Filter messages to only include current phase context (every 5 questions)
+            # Filter messages to only include current phase context
             current_question_number = order + 1  # next question number
             filtered_messages = _filter_messages_by_phase(
-                messages, current_question_number
+                messages, current_question_number, self.questions_per_phase
             )
             chat_history = _organize_chat_history(filtered_messages)
 
@@ -253,7 +296,9 @@ class LangGraphDriver:
                 "pending_question": question,
                 "pending_question_meta": {"model_version": "gemini-2.0-flash"},
                 "session_id": state["session_id"],
-                "personality_element_id": state["next_display_order"] // 4 + 1,
+                "personality_element_id": state.get(
+                    "personality_element_id", 1
+                ),  # Use existing or default
                 "next_display_order": state["next_display_order"] + 1,
             }
 
@@ -387,7 +432,11 @@ class LangGraphDriver:
                 raise LLMError("LLM error during options generation", {"error": str(e)})
 
     def run_workflow(
-        self, user_messages: List[Message], session_id: str, user_id: str
+        self,
+        user_messages: List[Message],
+        session_id: str,
+        user_id: str,
+        personality_element_id: int = 1,
     ) -> Dict[str, Any]:
         """Execute the LangGraph workflow"""
         try:
@@ -397,13 +446,12 @@ class LangGraphDriver:
                     "session_id": session_id,
                     "user_id": user_id,
                     "has_user_input": bool(user_messages),
+                    "personality_element_id": personality_element_id,
                 },
             )
 
             checkpointer = create_checkpointer()
             config = {"configurable": {"thread_id": session_id}}
-
-            # Try to get existing state first
             existing_state = None
             try:
                 existing_state = self.get_state(session_id)
@@ -423,7 +471,6 @@ class LangGraphDriver:
                     extra={"session_id": session_id, "reason": str(e)},
                 )
 
-            # Create initial state or continue from existing state
             messages = [msg for msg in user_messages if msg.content != ""]
             logging.debug(
                 f"User messages for workflow: {messages}",
@@ -436,12 +483,16 @@ class LangGraphDriver:
                     f"Continuing from existing state: next_display_order={current_next_order}"
                 )
 
-                # Check if we're starting a new phase (every 5 questions)
+                # Check if we're starting a new phase
                 current_phase = (
-                    ((current_next_order - 1) // 5) + 1 if current_next_order > 0 else 1
+                    ((current_next_order - 1) // self.questions_per_phase) + 1
+                    if current_next_order > 0
+                    else 1
                 )
                 question_number_in_phase = (
-                    ((current_next_order - 1) % 5) + 1 if current_next_order > 0 else 1
+                    ((current_next_order - 1) % self.questions_per_phase) + 1
+                    if current_next_order > 0
+                    else 1
                 )
 
                 # If this is the first question of a new phase, clear phase-specific context
@@ -469,9 +520,12 @@ class LangGraphDriver:
                     "messages": messages,  # use only new user messages
                     "options": existing_state.get("options", []),
                     "next_display_order": current_next_order,
-                    "personality_element_id": existing_state.get(
-                        "personality_element_id", 1
-                    ),
+                    # personality_element_id should match _generate_question_node logic
+                    "personality_element_id": (
+                        (current_next_order) // self.questions_per_phase
+                    )
+                    % 4
+                    + 1,
                     "answers": existing_state.get("answers", {}),
                     "phase": existing_state.get("phase", "ask"),
                     "pending_question": existing_state.get("pending_question"),
@@ -481,15 +535,18 @@ class LangGraphDriver:
                 }
 
             else:
-                # Create fresh state for new conversation
-                logger.info("Creating new conversation state")
+                # Create fresh state for new conversation, set personality_element_id
+                logger.info(
+                    "Creating new conversation state with personality_element_id=%s",
+                    personality_element_id,
+                )
                 state = {
                     "user_id": user_id,
                     "session_id": session_id,
                     "messages": messages,
                     "options": [],
                     "next_display_order": 0,
-                    "personality_element_id": 1,
+                    "personality_element_id": personality_element_id,
                     "answers": {},
                     "phase": "ask",
                     "pending_question": None,

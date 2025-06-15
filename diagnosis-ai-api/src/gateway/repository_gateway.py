@@ -3,6 +3,7 @@ Gateway implementations for repository operations.
 This layer adapts the driver layer to the port interfaces.
 """
 
+import os
 from typing import Dict, Any, Optional, List
 from ..port.ports import (
     QuestionRepositoryPort,
@@ -11,6 +12,7 @@ from ..port.ports import (
 )
 from ..driver.db import GeneratedQuestionDriver, UserAnswerDriver, ChatSessionDriver
 from ..driver.env import ElementsDriver
+from ..driver.gcs import GCSDriver
 
 
 class QuestionRepositoryGateway(QuestionRepositoryPort):
@@ -114,3 +116,29 @@ class ElementRepositoryGateway(ElementRepositoryPort):
             return self.element_driver.get_initial_question(element_id)
         except Exception as e:
             raise RuntimeError(f"Failed to get initial question: {str(e)}")
+
+
+class DataCollectionRepositoryGateway:
+    """Gateway implementation for data collection operations"""
+
+    def __init__(self):
+        # Placeholder for actual upload logic
+        bucket_name = os.getenv("GCS_BUCKET_NAME", "your-default-bucket")
+        # プロジェクトIDを環境変数またはquota_project_idから取得
+        project_id = (
+            os.getenv("GCP_PROJECT")
+            or os.getenv("GOOGLE_CLOUD_PROJECT")
+            or os.getenv("GCLOUD_PROJECT")
+            or "chat-mbti-458210"
+        )
+        self.gcs_driver = GCSDriver(bucket_name=bucket_name, project_id=project_id)
+
+    def upload_data(self, file_name, csv_content) -> str:
+        """Upload data to Google Cloud Storage"""
+        try:
+            uploaded_blob = self.gcs_driver.upload_blob(
+                blob_name=file_name, content=csv_content
+            )
+            return uploaded_blob
+        except Exception as e:
+            raise RuntimeError(f"Failed to upload data: {str(e)}")

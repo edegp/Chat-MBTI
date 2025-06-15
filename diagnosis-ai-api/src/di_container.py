@@ -8,7 +8,7 @@ from src.port.ports import (
     WorkflowPort,
     QuestionRepositoryPort,
     SessionRepositoryPort,
-    ElementsRepositoryPort,
+    ElementRepositoryPort,
 )
 from src.gateway.llm_gateway import LLMGateway
 from src.gateway.repository_gateway import (
@@ -46,21 +46,27 @@ class DIContainer:
             self._instances["session_repository_port"] = SessionRepositoryGateway()
         return self._instances["session_repository_port"]
 
-    def get_elements_repository_port(self) -> ElementsRepositoryPort:
+    def get_elements_repository_port(self) -> ElementRepositoryPort:
         """Get elements repository port instance"""
         if "elements_repository_port" not in self._instances:
             self._instances["elements_repository_port"] = ElementRepositoryGateway()
         return self._instances["elements_repository_port"]
 
-    def get_langgraph_driver(self) -> LangGraphDriver:
-        """Get LangGraph driver instance"""
-        if "langgraph_driver" not in self._instances:
-            self._instances["langgraph_driver"] = LangGraphDriver(
+    def get_langgraph_driver(self, questions_per_phase: int = 5) -> LangGraphDriver:
+        """Get LangGraph driver instance with configurable questions per phase"""
+        cache_key = f"langgraph_driver_{questions_per_phase}"
+        if cache_key not in self._instances:
+            self._instances[cache_key] = LangGraphDriver(
                 llm_port=self.get_llm_port(),
                 question_repository=self.get_question_repository_port(),
                 elements_repository=self.get_elements_repository_port(),
+                questions_per_phase=questions_per_phase,
             )
-        return self._instances["langgraph_driver"]
+        return self._instances[cache_key]
+
+    def get_data_collection_langgraph_driver(self) -> LangGraphDriver:
+        """Get LangGraph driver instance configured for data collection (10 questions per phase)"""
+        return self.get_langgraph_driver(questions_per_phase=10)
 
     def get_workflow_port(self) -> WorkflowPort:
         """Get workflow port instance"""
@@ -70,6 +76,14 @@ class DIContainer:
             )
         return self._instances["workflow_port"]
 
+    def get_data_collection_workflow_port(self) -> WorkflowPort:
+        """Get workflow port instance configured for data collection"""
+        if "data_collection_workflow_port" not in self._instances:
+            self._instances["data_collection_workflow_port"] = WorkflowGateway(
+                langgraph_driver=self.get_data_collection_langgraph_driver()
+            )
+        return self._instances["data_collection_workflow_port"]
+
     def get_mbti_service(self) -> MBTIConversationService:
         """Get MBTI conversation service instance"""
         if "mbti_service" not in self._instances:
@@ -78,6 +92,7 @@ class DIContainer:
                 question_repository=self.get_question_repository_port(),
                 session_repository=self.get_session_repository_port(),
                 elements_repository=self.get_elements_repository_port(),
+                data_collection_workflow_port=self.get_data_collection_workflow_port(),
             )
         return self._instances["mbti_service"]
 

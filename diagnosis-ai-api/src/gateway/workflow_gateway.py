@@ -16,13 +16,30 @@ class WorkflowGateway(WorkflowPort):
         self.driver = langgraph_driver
 
     def execute_conversation_flow(
-        self, user_input: str, session_id: str, user_id: str
+        self,
+        user_input: str,
+        session_id: str,
+        user_id: str,
+        personality_element_id: int = None,
     ) -> Dict[str, Any]:
         """Execute the conversation workflow and return results"""
         try:
             # wrap raw user input into a single Message for the workflow
             messages = [Message(role="user", content=user_input)]
-            return self.driver.run_workflow(messages, session_id, user_id)
+            # Call run_workflow without element_id when None (tests expect 3 args)
+            if personality_element_id is None:
+                return self.driver.run_workflow(
+                    messages,
+                    session_id,
+                    user_id,
+                )
+            else:
+                return self.driver.run_workflow(
+                    messages,
+                    session_id,
+                    user_id,
+                    personality_element_id,
+                )
         except Exception as e:
             raise RuntimeError(f"Failed to execute conversation flow: {str(e)}")
 
