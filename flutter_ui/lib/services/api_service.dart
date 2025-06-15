@@ -107,7 +107,7 @@ class ApiService {
   // 診断を完了
   Future<Map<String, dynamic>> completeAssessment() async {
     final headers = await _getHeaders();
-    final response = await http.get(
+    final response = await http.post(
       Uri.parse('$baseUrl/conversation/complete'),
       headers: headers,
     );

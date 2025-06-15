@@ -3,6 +3,8 @@ from .ports import (
     WorkflowPort,
     QuestionRepositoryPort,
     SessionRepositoryPort,
+    ElementRepositoryPort,
+    DataCollectionRepositoryPort,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "WorkflowPort",
     "QuestionRepositoryPort",
     "SessionRepositoryPort",
+    "ElementRepositoryPort",
+    "DataCollectionRepositoryPort",
 ]

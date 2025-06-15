@@ -13,6 +13,7 @@ from ..port.ports import (
     ElementRepositoryPort,
 )
 from .type import Message
+from .data_collection_service import DataCollectionService
 from ..exceptions import (
     SessionNotFoundError,
     SessionError,
@@ -34,50 +35,99 @@ class MBTIConversationService:
         question_repository: QuestionRepositoryPort,
         session_repository: SessionRepositoryPort,
         elements_repository: ElementRepositoryPort,
+        data_collection_workflow_port: WorkflowPort = None,
+        data_collection_repository: QuestionRepositoryPort = None,
     ):
         self.workflow = workflow_port
         self.question_repository = question_repository
         self.session_repository = session_repository
         self.elements_repository = elements_repository
+        # Initialize data collection service for business logic
+        self.data_collection_service = DataCollectionService(data_collection_repository)
+        # Optional data collection workflow port for different configuration
+        self.data_collection_workflow = data_collection_workflow_port or workflow_port
 
-    def start_conversation(self, user_id: str) -> Dict[str, Any]:
+    def start_conversation(
+        self, user_id: str, element_id: int = None
+    ) -> Dict[str, Any]:
         """Start a new MBTI conversation"""
         try:
-            logger.info("Starting conversation", extra={"user_id": user_id})
+            logger.info(
+                "Starting conversation",
+                extra={"user_id": user_id, "element_id": element_id},
+            )
+
+            # Check if this is data collection mode
+            is_data_collection = user_id == "data_collection_user"
+
+            # Select appropriate workflow
+            workflow = (
+                self.data_collection_workflow if is_data_collection else self.workflow
+            )
+
             existing_session = self.session_repository.get_session_by_user(user_id)
             if existing_session:
-                # 既存のセッションがあれば、最新の質問を返す
-                session_id = existing_session
-                logger.info(
-                    "Resuming existing session",
-                    extra={"session_id": session_id, "user_id": user_id},
-                )
-                state = self.workflow.get_conversation_state(session_id)
-                messages = state.get("messages", [])
-                if not messages:
-                    raise InvalidResponseError(
-                        "No messages in session",
-                        {"user_id": user_id, "session_id": session_id},
+                if is_data_collection:
+                    logger.info(
+                        "Closing existing data collection session to start fresh",
+                        extra={"session_id": existing_session, "user_id": user_id},
                     )
-                last = messages[-1]
-                question = (
-                    last.content
-                    if hasattr(last, "content")
-                    else last.get("content", "")
+                    self.session_repository.close_session(existing_session)
+                    session_id = self.session_repository.create_session(user_id)
+                    logger.info(
+                        "Created new data collection session",
+                        extra={"session_id": session_id, "user_id": user_id},
+                    )
+                else:
+                    session_id = existing_session
+                    logger.info(
+                        "Resuming existing session",
+                        extra={"session_id": session_id, "user_id": user_id},
+                    )
+                    state = workflow.get_conversation_state(session_id)
+                    messages = state.get("messages", [])
+                    if not messages:
+                        raise InvalidResponseError(
+                            "No messages in session",
+                            {"user_id": user_id, "session_id": session_id},
+                        )
+                    last = messages[-1]
+                    question = (
+                        last.content
+                        if hasattr(last, "content")
+                        else last.get("content", "")
+                    )
+
+                    response_data = {
+                        "phase": "question",
+                        "question": question,
+                        "session_id": session_id,
+                        "status": "success",
+                    }
+
+                    if is_data_collection:
+                        next_order = state.get("next_display_order", 0)
+                        progress_info = self.data_collection_service.get_progress_info(
+                            next_order
+                        )
+                        response_data["progress_info"] = progress_info
+
+                    return response_data
+            else:
+                session_id = self.session_repository.create_session(user_id)
+
+            # For data collection, initialize with proper element ID
+            if is_data_collection:
+                initial_element_id = element_id if element_id is not None else 1
+                logger.info(
+                    f"Starting data collection with element_id: {initial_element_id}",
+                    extra={"user_id": user_id, "element_id": initial_element_id},
                 )
-                return {
-                    "phase": "question",
-                    "question": question,
-                    "session_id": session_id,
-                    "status": "success",
-                }
-            # 新規 or 再開を問わず、最初は空履歴でワークフローを実行して質問とオプションを生成
-            session_id = (
-                self.session_repository.create_session(user_id)
-                if not existing_session
-                else existing_session
-            )
-            result = self.workflow.execute_conversation_flow("", session_id, user_id)
+                result = workflow.execute_conversation_flow(
+                    "", session_id, user_id, personality_element_id=initial_element_id
+                )
+            else:
+                result = workflow.execute_conversation_flow("", session_id, user_id)
             last_msg = result.get("messages", [])[-1]
             question = (
                 last_msg.content
@@ -85,13 +135,20 @@ class MBTIConversationService:
                 else last_msg.get("content", "")
             )
             options = result.get("options", [])
-            return {
+
+            response_data = {
                 "phase": "question",
                 "question": question,
                 "options": options,
                 "session_id": session_id,
                 "status": "success",
             }
+
+            if is_data_collection:
+                progress_info = self.data_collection_service.get_progress_info(0)
+                response_data["progress_info"] = progress_info
+
+            return response_data
         except (
             SessionNotFoundError,
             AssessmentError,
@@ -131,34 +188,80 @@ class MBTIConversationService:
                     "No active session found for user", {"user_id": user_id}
                 )
 
+            # Check if this is data collection mode
+            is_data_collection = user_id == "data_collection_user"
+
+            # Select appropriate workflow
+            workflow = (
+                self.data_collection_workflow if is_data_collection else self.workflow
+            )
+
             # Get current conversation state to check progress
-            current_state = self.workflow.get_conversation_state(session_id)
+            current_state = workflow.get_conversation_state(session_id)
             next_order = current_state.get("next_display_order", 0)
             logger.debug(
                 "Current conversation state retrieved",
                 extra={"session_id": session_id, "next_display_order": next_order},
             )
 
-            # Business rule: Check if we have enough questions (MBTI typically needs 20+ questions)
-            if next_order >= 20:
-                logger.info(
-                    "Assessment complete",
-                    extra={"session_id": session_id, "questions_completed": next_order},
+            if is_data_collection:
+                # Use data collection business logic
+                progress_info = self.data_collection_service.get_progress_info(
+                    next_order
                 )
-                return {
-                    "phase": "diagnosis",
-                    "message": "Assessment complete! Ready for MBTI diagnosis.",
-                    "session_id": session_id,
-                    "status": "success",
-                }
+
+                # Calculate personality_element_id using business logic
+                # For the next question (current_order), calculate which element it should be
+                new_element_id = (
+                    self.data_collection_service.calculate_personality_element_id(
+                        next_order  # Use next_order directly, not next_order + 1
+                    )
+                )
+
+                # Update state with correct element ID before workflow execution
+                current_state["personality_element_id"] = new_element_id
+
+                # Check if data collection is complete
+                if self.data_collection_service.is_data_collection_complete(next_order):
+                    logger.info(
+                        "Data collection complete",
+                        extra={
+                            "session_id": session_id,
+                            "questions_completed": next_order,
+                        },
+                    )
+                    return {
+                        "phase": "diagnosis",
+                        "message": "Data collection complete! All 50 questions answered.",
+                        "session_id": session_id,
+                        "status": "success",
+                        "progress_info": progress_info,
+                    }
+
+                total_questions = self.data_collection_service.TOTAL_QUESTIONS
+            else:
+                # Standard MBTI logic (20 questions)
+                if next_order >= 20:
+                    logger.info(
+                        "Assessment complete",
+                        extra={
+                            "session_id": session_id,
+                            "questions_completed": next_order,
+                        },
+                    )
+                    return {
+                        "phase": "diagnosis",
+                        "message": "Assessment complete! Ready for MBTI diagnosis.",
+                        "session_id": session_id,
+                        "status": "success",
+                    }
+                total_questions = 20
 
             # Execute workflow with user response
-            result = self.workflow.execute_conversation_flow(
-                user_input, session_id, user_id
-            )
+            result = workflow.execute_conversation_flow(user_input, session_id, user_id)
 
             # Get updated conversation state after processing user response
-            current_state = self.workflow.get_conversation_state(session_id)
+            current_state = workflow.get_conversation_state(session_id)
             next_order = current_state.get("next_display_order", 0)
 
             # Extract results
@@ -180,9 +283,26 @@ class MBTIConversationService:
                 # Adjust question index since next_order reflects next_display_order after generation
                 question_index = max(next_order, 0)
                 completed_questions = question_index
-                progress = min(completed_questions / 20.0, 1.0)
+                progress = min(completed_questions / total_questions, 1.0)
                 # Question number to display for the upcoming question
-                current_question_number = min(max(next_order, 1), 20)
+                current_question_number = min(max(next_order, 1), total_questions)
+
+                response_data = {
+                    "phase": "question",
+                    "question": question,
+                    "session_id": session_id,
+                    "progress": progress,
+                    "question_number": current_question_number,
+                    "total_questions": total_questions,
+                    "status": "success",
+                }
+
+                # Add data collection specific info if applicable
+                if is_data_collection:
+                    response_data["progress_info"] = progress_info
+                    response_data["element_switching"] = (
+                        self.data_collection_service.is_element_switching(next_order)
+                    )
 
                 logger.info(
                     "User response processed successfully",
@@ -192,18 +312,11 @@ class MBTIConversationService:
                         "progress": progress,
                         "question_number": current_question_number,
                         "completed_questions": completed_questions,
+                        "is_data_collection": is_data_collection,
                     },
                 )
 
-                return {
-                    "phase": "question",
-                    "question": question,
-                    "session_id": session_id,
-                    "progress": progress,
-                    "question_number": current_question_number,
-                    "total_questions": 20,
-                    "status": "success",
-                }
+                return response_data
             else:
                 raise InvalidResponseError(
                     "No question generated from workflow",
@@ -264,20 +377,36 @@ class MBTIConversationService:
                     "No active session found for user", {"user_id": user_id}
                 )
 
+            # Check if this is data collection mode
+            is_data_collection = user_id == "data_collection_user"
+
             # Business rule: Check if enough questions were answered
             current_state = self.workflow.get_conversation_state(session_id)
             answered_questions = current_state.get("next_display_order", 0)
 
-            if answered_questions < 20:
-                raise AssessmentIncompleteError(
-                    f"Assessment incomplete. Only {answered_questions}/20 questions answered.",
-                    {
+            if is_data_collection:
+                # For data collection, always allow completion to enable fresh start
+                logger.info(
+                    "Completing data collection session",
+                    extra={
                         "user_id": user_id,
                         "session_id": session_id,
                         "answered_questions": answered_questions,
-                        "required_questions": 20,
+                        "force_complete": True,
                     },
                 )
+            else:
+                # Standard MBTI assessment requires 20 questions
+                if answered_questions < 20:
+                    raise AssessmentIncompleteError(
+                        f"Assessment incomplete. Only {answered_questions}/20 questions answered.",
+                        {
+                            "user_id": user_id,
+                            "session_id": session_id,
+                            "answered_questions": answered_questions,
+                            "required_questions": 20,
+                        },
+                    )
 
             # Close the session
             self.session_repository.close_session(session_id)

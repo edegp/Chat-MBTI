@@ -32,7 +32,7 @@ class ElementsDriver:
 
     def get_element(self, element_id: int) -> dict:
         """Get element by ID."""
-        if element_id - 1 in self.elements:
+        if 1 <= element_id <= len(self.elements):
             return self.elements[element_id - 1]
         else:
             raise KeyError(f"Element with ID {element_id} not found.")
@@ -40,11 +40,23 @@ class ElementsDriver:
     def get_initial_question(self, id: int = 1) -> str:
         """Get the initial question from the elements."""
         logger.info(f"Fetching element info for ID: {id}")
-        return np.random.choice(self.elements[id - 1]["initial_questions"])
+        # Ensure element_id is within valid range (1-4)
+        element_index = max(0, min(id - 1, len(self.elements) - 1))
+        if id < 1 or id > len(self.elements):
+            logger.warning(
+                f"Element ID {id} out of range, using element {element_index + 1}"
+            )
+        return np.random.choice(self.elements[element_index]["initial_questions"])
 
     def get_element_info(self, id: int) -> dict:
         """Get element information by ID."""
         logger.info(f"Fetching element info for ID: {id}")
-        return self.elements[id - 1]["element"], self.elements[id - 1][
+        # Ensure element_id is within valid range (1-4)
+        element_index = max(0, min(id - 1, len(self.elements) - 1))
+        if id < 1 or id > len(self.elements):
+            logger.warning(
+                f"Element ID {id} out of range, using element {element_index + 1}"
+            )
+        return self.elements[element_index]["element"], self.elements[element_index][
             "element_description"
         ]

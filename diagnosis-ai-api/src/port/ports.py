@@ -109,10 +109,20 @@ class ElementRepositoryPort(ABC):
         pass
 
 
+class DataCollectionRepositoryPort(ABC):
+    """Abstract interface for data collection operations"""
+
+    @abstractmethod
+    def upload_data_collection(self, user_id: str, data: Dict[str, Any]) -> None:
+        """Upload data collection for a user"""
+        pass
+
+
 __all__ = [
     "LLMPort",
     "WorkflowPort",
     "QuestionRepositoryPort",
     "SessionRepositoryPort",
     "ElementRepositoryPort",
+    "DataCollectionRepositoryPort",
 ]

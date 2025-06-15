@@ -11,15 +11,17 @@ services:
           path: ./src
           target: /app/src
     ports:
-      - "8000:8000"
+      - '8000:8000'
     environment:
       - PERSISTENCE_TYPE=sql
       - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
     depends_on:
       - db
     volumes:
       - ./src:/app/src
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
     restart: unless-stopped
 
   db:
@@ -31,7 +33,7 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_DB=diagnosis_ai
     ports:
-      - "5432:5432"
+      - '5432:5432'
     restart: unless-stopped
 
 volumes:

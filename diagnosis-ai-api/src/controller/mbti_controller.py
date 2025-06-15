@@ -6,11 +6,13 @@ This controller handles HTTP requests and delegates business logic to the usecas
 import logging
 from typing import Dict, Any
 from ..usecase.mbti_conversation_service import MBTIConversationService
+from ..usecase.data_collection_service import DataCollectionService
 from ..gateway.llm_gateway import LLMGateway
 from ..gateway.repository_gateway import (
     QuestionRepositoryGateway,
     SessionRepositoryGateway,
     ElementRepositoryGateway,
+    DataCollectionRepositoryGateway,
 )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Depends
@@ -26,7 +28,12 @@ from ..exceptions import (
     InvalidInputError,
     create_error_response,
 )
-from .type import StartConversationRequest, ProcessUserResponseRequest
+from .type import (
+    StartConversationRequest,
+    ProcessUserResponseRequest,
+)
+
+from ..type import DataCollectionUploadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +43,24 @@ security = HTTPBearer()
 class MBTIController:
     """Controller for MBTI conversation API endpoints"""
 
-    def __init__(self, mbti_service: MBTIConversationService):
+    def __init__(
+        self,
+        mbti_service: MBTIConversationService,
+        data_collection_service: DataCollectionService = None,
+    ):
         self.mbti_service = mbti_service
+        self.data_collection_service = data_collection_service
 
     async def start_conversation(
         self, request: StartConversationRequest
     ) -> Dict[str, Any]:
         """Start MBTI conversation endpoint"""
         user_id = request.user_id
+        element_id = getattr(request, "element_id", None)
 
-        logger.info(f"Starting conversation for user: {user_id}")
+        logger.info(
+            f"Starting conversation for user: {user_id}, element_id: {element_id}"
+        )
 
         if not user_id:
             error = InvalidInputError("User ID is required")
@@ -53,8 +68,16 @@ class MBTIController:
             return create_error_response(error)
 
         try:
-            result = self.mbti_service.start_conversation(user_id)
-            logger.info(f"Conversation started successfully for user: {user_id}")
+            # Pass element_id only if provided
+            if element_id is None:
+                result = self.mbti_service.start_conversation(user_id)
+            else:
+                result = self.mbti_service.start_conversation(
+                    user_id, element_id=element_id
+                )
+            logger.info(
+                f"Conversation started successfully for user: {user_id}, element_id: {element_id}"
+            )
             return result
         except MBTIApplicationError as e:
             logger.error(
@@ -268,6 +291,41 @@ class MBTIController:
             error_response["history"] = []  # 追加フィールド
             return error_response
 
+    async def upload_data_collection_csv(
+        self, request: DataCollectionUploadRequest
+    ) -> Dict[str, Any]:
+        """Upload data collection CSV to GCS"""
+        logger.info(
+            f"Uploading data collection CSV for user: {request.participant_name}"
+        )
+
+        if not request.participant_name:
+            error = InvalidInputError("Participant name is required")
+            error.log_error(logger)
+            return create_error_response(error)
+
+        try:
+            result = self.data_collection_service.upload_data_collection_csv(
+                participant_name=request.participant_name,
+                personality_code=request.personality_code,
+                csv_content=request.csv_content,
+                element_id=request.element_id,
+                cycle_number=request.cycle_number,
+            )
+            logger.info(
+                f"Data collection CSV uploaded successfully for user: {request.participant_name}"
+            )
+            return result
+        except MBTIApplicationError as e:
+            e.log_error(logger)
+            return create_error_response(e)
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while uploading data collection CSV for user {request.participant_name}: {e}"
+            )
+            error = MBTIApplicationError("Internal server error")
+            return create_error_response(error)
+
 
 def get_mbti_controller() -> MBTIController:
     """Dependency injection for MBTIController"""
@@ -280,6 +338,7 @@ def get_mbti_controller() -> MBTIController:
     langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo)
     # Create workflow gateway
     workflow_gateway = WorkflowGateway(langgraph_driver)
+    data_collection_repo = DataCollectionRepositoryGateway()
 
     # Create service
     mbti_service = MBTIConversationService(
@@ -287,10 +346,14 @@ def get_mbti_controller() -> MBTIController:
         question_repository=question_repo,
         session_repository=session_repo,
         elements_repository=elements_repo,
+        data_collection_repository=data_collection_repo,
+    )
+    data_collection_service = DataCollectionService(
+        data_collection_repository=data_collection_repo,
     )
 
     # Create controller
-    return MBTIController(mbti_service)
+    return MBTIController(mbti_service, data_collection_service)
 
 
 async def get_current_user(

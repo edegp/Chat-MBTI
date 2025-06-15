@@ -39,6 +39,9 @@ dependencies:
   firebase_auth: ^5.5.3
   shared_preferences: ^2.5.3
   http: ^1.1.0
+  csv: ^6.0.0
+  universal_html: ^2.2.4
+  url_strategy: ^0.2.0
 
 dev_dependencies:
   flutter_test:
@@ -93,6 +96,20 @@ flutter:
         - asset: assets/fonts/Murecho/static/Murecho-ExtraBold.ttf
           weight: 800
         - asset: assets/fonts/Murecho/static/Murecho-Black.ttf
+          weight: 900
+    - family: NotoSansJP
+      fonts:
+        - asset: assets/fonts/Noto_Sans_JP/static/NotoSansJP-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/Noto_Sans_JP/static/NotoSansJP-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Noto_Sans_JP/static/NotoSansJP-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Noto_Sans_JP/static/NotoSansJP-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Noto_Sans_JP/static/NotoSansJP-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Noto_Sans_JP/static/NotoSansJP-Black.ttf
           weight: 900
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
