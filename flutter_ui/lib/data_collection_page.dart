@@ -1,3 +1,5 @@
+// ignore_for_file: constant_identifier_names, prefer_final_fields, avoid_print, use_build_context_synchronously, non_constant_identifier_names, unused_local_variable
+
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:csv/csv.dart';
