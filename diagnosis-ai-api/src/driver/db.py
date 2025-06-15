@@ -129,11 +129,13 @@ except KeyError as e:
 
 
 def get_dsn() -> str:
+    logger.info("Constructing database connection string")
     # Read database name and use application user credentials
     db_name = os.getenv("DB_NAME", "diagnosis_ai")
     db_user = APP_DB_USER
     db_pass = APP_DB_PASS
     socket_path = DB_SOCKET_PATH
+    logger.info(f"Using database: {db_name}, user: {db_user} via socket: {socket_path}")
     if SQL_CONNECTION_NAME is not None:
         logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
         return f"postgresql://{db_user}:{db_pass}@/{db_name}?unix_socket={socket_path}"
@@ -171,7 +173,8 @@ DB_URI = get_dsn()
 
 def init_postgres(dsn: str = DB_URI):
     """スキーマを作成する（idempotent）。"""
-    if SQL_CONNECTION_NAME is not None and not os.getenv("DB_HOST"):
+    logger.info("Initializing PostgreSQL database %s", dsn)
+    if SQL_CONNECTION_NAME is None and not os.getenv("DB_HOST"):
         try:
             # Connect as superuser to set up local app user
             with psycopg2.connect(dsn) as admin_conn:
