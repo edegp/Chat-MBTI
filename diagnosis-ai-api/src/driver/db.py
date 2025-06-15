@@ -106,7 +106,8 @@ CREATE INDEX IF NOT EXISTS user_answers_session_x ON user_answers(question_id);
 
 # UUIDアダプターを登録（ファイルの先頭に追加）
 psycopg2.extras.register_uuid()
-
+SQL_CONNECTION_NAME = os.getenv("SQL_CONNECTION_NAME")
+DB_SOCKET_PATH = f"/cloudsql/{SQL_CONNECTION_NAME}"
 # Environment variables for secure DB user management
 try:
     # Application user credentials must be set via environment (e.g., Secret Manager)
@@ -132,8 +133,8 @@ def get_dsn() -> str:
     db_name = os.getenv("DB_NAME", "diagnosis_ai")
     db_user = APP_DB_USER
     db_pass = APP_DB_PASS
-    socket_path = os.getenv("DB_SOCKET_PATH")
-    if socket_path is not None:
+    socket_path = DB_SOCKET_PATH
+    if SQL_CONNECTION_NAME is not None:
         logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
         return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={socket_path}"
 
@@ -169,7 +170,7 @@ DB_URI = get_dsn()
 
 def init_postgres(dsn: str = DB_URI):
     """スキーマを作成する（idempotent）。"""
-    if not os.getenv("DB_SOCKET_PATH") and not os.getenv("DB_HOST"):
+    if SQL_CONNECTION_NAME is not None and not os.getenv("DB_HOST"):
         try:
             # Connect as superuser to set up local app user
             with psycopg2.connect(dsn) as admin_conn:

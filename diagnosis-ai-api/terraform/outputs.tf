@@ -1,12 +1,12 @@
-output "cloud_run_url" {
-  description = "URL of the deployed Cloud Run service"
-  value       = google_cloud_run_v2_service.main.uri
-}
+# output "cloud_run_url" {
+#   description = "URL of the deployed Cloud Run service"
+#   value       = google_cloud_run_v2_service.main.uri
+# }
 
-output "cloud_run_service_name" {
-  description = "Name of the Cloud Run service"
-  value       = google_cloud_run_v2_service.main.name
-}
+# output "cloud_run_service_name" {
+#   description = "Name of the Cloud Run service"
+#   value       = google_cloud_run_v2_service.main.name
+# }
 
 output "artifact_registry_repository" {
   description = "Artifact Registry repository URL"
