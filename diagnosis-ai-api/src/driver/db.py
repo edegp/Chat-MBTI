@@ -136,13 +136,14 @@ def get_dsn() -> str:
     socket_path = DB_SOCKET_PATH
     if SQL_CONNECTION_NAME is not None:
         logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
-        return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={socket_path}"
+        return f"postgresql://{db_user}:{db_pass}@/{db_name}?unix_socket={socket_path}"
 
     # Use custom host if provided (e.g., Cloud Run TCP or other env)
     db_host = os.environ.get("DB_HOST")
     if db_host:
         logger.info(
-            "Connecting via DB_HOST environment variable", extra={"host": db_host}
+            "Connecting via DB_HOST environment variable",
+            extra={"unix_socket": db_host},
         )
         return (
             f"postgresql://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=disable"

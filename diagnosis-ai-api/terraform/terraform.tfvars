@@ -1,7 +1,5 @@
 # Terraform variables for MBTI Diagnosis API deployment
 project_id = "chat-mbti-458210"
-db_password = "SecurePassword123!"
-gemini_api_key = "temp-key-for-testing"
 
 # Optional customizations
 region = "asia-northeast1"
@@ -12,4 +10,9 @@ cpu_limit = "1"
 memory_limit = "2Gi"
 db_tier = "db-f1-micro"
 db_name = "mbti_diagnosis"
-db_user = "mbti_user"
+gemini_api_key = "AIzaSyDM58NqkGydvxHXum0PfrUCFg4W8JsM5m4"
+
+github_owner = "edegp"  # 例: edegp
+github_repo  = "Chat-MBTI"
+ar_hostname = "asia-northeast1-docker.pkg.dev"
+ar_repository = "cloud-run-source-deploy"

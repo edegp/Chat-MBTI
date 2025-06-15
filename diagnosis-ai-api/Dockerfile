@@ -24,6 +24,10 @@ COPY uv.lock ./
 RUN uv sync
 RUN uv pip install -e .
 
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 COPY . .
 
 # Expose the port

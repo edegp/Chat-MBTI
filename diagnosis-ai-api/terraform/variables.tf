@@ -54,30 +54,11 @@ variable "db_name" {
   default     = "mbti_diagnosis"
 }
 
-variable "db_user" {
-  description = "Database user"
-  type        = string
-  default     = "mbti_user"
-}
-
-variable "db_password" {
-  description = "Database password"
-  type        = string
-  sensitive   = true
-}
-
 # API Keys
 variable "gemini_api_key" {
   description = "Google Gemini API key"
   type        = string
   sensitive   = true
-}
-
-# Optional custom domain
-variable "custom_domain" {
-  description = "Custom domain for the service (optional)"
-  type        = string
-  default     = ""
 }
 
 # Billing alerts configuration
@@ -103,4 +84,30 @@ variable "notification_channels" {
   description = "List of notification channels for billing alerts"
   type        = list(string)
   default     = []
+}
+
+variable "github_owner" {
+  description = "GitHub repository owner (user or org)"
+  type        = string
+}
+
+variable "github_repo" {
+  description = "GitHub repository name"
+  type        = string
+}
+
+variable "github_branch" {
+  description = "GitHub branch to trigger builds on (regex supported)"
+  type        = string
+  default     = "main"
+}
+
+variable "ar_hostname" {
+  description = "Artifact Registry hostname (e.g. asia-northeast1-docker.pkg.dev)"
+  type        = string
+}
+
+variable "ar_repository" {
+  description = "Artifact Registry repository name"
+  type        = string
 }
