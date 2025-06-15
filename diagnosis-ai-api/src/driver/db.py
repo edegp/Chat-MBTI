@@ -136,6 +136,7 @@ def get_dsn() -> str:
     db_pass = APP_DB_PASS
     socket_path = DB_SOCKET_PATH
     logger.info(f"Using database: {db_name}, user: {db_user} via socket: {socket_path}")
+    logger.debug(f"Database connection details {db_pass}")
     if SQL_CONNECTION_NAME is not None:
         logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
         return f"postgresql://{db_user}:{db_pass}@/{db_name}?unix_socket={socket_path}"
