@@ -36,7 +36,6 @@ output "service_account_email" {
 output "secret_manager_secrets" {
   description = "Secret Manager secret IDs"
   value = {
-    db_url         = google_secret_manager_secret.db_url.secret_id
     gemini_api_key = google_secret_manager_secret.gemini_api_key.secret_id
   }
 }

@@ -19,34 +19,34 @@ DB_APP_PASS=$(openssl rand -base64 32)
 DB_ADMIN_USER="adm_$(RAND_SUFFIX)"
 DB_ADMIN_PASS=$(openssl rand -base64 32)
 
-# Create or update users in Cloud SQL
-echo "Creating App user: $DB_APP_USER"
-gcloud sql users create "$DB_APP_USER" \
-  --instance="$INSTANCE_ID" \
-  --host="%" \
-  --project="$PROJECT_ID" \
-  --password="$DB_APP_PASS" || {
-    echo "Updating password for existing app user"
-    gcloud sql users set-password "$DB_APP_USER" \
-      --instance="$INSTANCE_ID" \
-      --host="%" \
-      --project="$PROJECT_ID" \
-      --password="$DB_APP_PASS"
-}
+# # Create or update users in Cloud SQL
+# echo "Creating App user: $DB_APP_USER"
+# gcloud sql users create "$DB_APP_USER" \
+#   --instance="$INSTANCE_ID" \
+#   --host="%" \
+#   --project="$PROJECT_ID" \
+#   --password="$DB_APP_PASS" || {
+#     echo "Updating password for existing app user"
+#     gcloud sql users set-password "$DB_APP_USER" \
+#       --instance="$INSTANCE_ID" \
+#       --host="%" \
+#       --project="$PROJECT_ID" \
+#       --password="$DB_APP_PASS"
+# }
 
-echo "Creating Admin user: $DB_ADMIN_USER"
-gcloud sql users create "$DB_ADMIN_USER" \
-  --instance="$INSTANCE_ID" \
-  --host="%" \
-  --project="$PROJECT_ID" \
-  --password="$DB_ADMIN_PASS" || {
-    echo "Updating password for existing admin user"
-    gcloud sql users set-password "$DB_ADMIN_USER" \
-      --instance="$INSTANCE_ID" \
-      --host="%" \
-      --project="$PROJECT_ID" \
-      --password="$DB_ADMIN_PASS"
-}
+# echo "Creating Admin user: $DB_ADMIN_USER"
+# gcloud sql users create "$DB_ADMIN_USER" \
+#   --instance="$INSTANCE_ID" \
+#   --host="%" \
+#   --project="$PROJECT_ID" \
+#   --password="$DB_ADMIN_PASS" || {
+#     echo "Updating password for existing admin user"
+#     gcloud sql users set-password "$DB_ADMIN_USER" \
+#       --instance="$INSTANCE_ID" \
+#       --host="%" \
+#       --project="$PROJECT_ID" \
+#       --password="$DB_ADMIN_PASS"
+# }
 
 # Store secrets in Secret Manager
 echo "Storing credentials in Secret Manager"
