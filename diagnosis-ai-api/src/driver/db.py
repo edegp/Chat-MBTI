@@ -7,6 +7,7 @@ from contextlib import _GeneratorContextManager
 import psycopg2
 import psycopg2.extras
 import os
+from urllib.parse import quote_plus
 
 from src.exceptions import (
     ConnectionError,
@@ -133,13 +134,13 @@ def get_dsn() -> str:
     # Read database name and use application user credentials
     db_name = os.getenv("DB_NAME", "diagnosis_ai")
     db_user = APP_DB_USER
-    db_pass = APP_DB_PASS
+    db_pass = quote_plus(APP_DB_PASS)
     socket_path = DB_SOCKET_PATH
     logger.info(f"Using database: {db_name}, user: {db_user} via socket: {socket_path}")
     logger.debug(f"Database connection details {db_pass}")
     if SQL_CONNECTION_NAME is not None:
         logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
-        return f"postgresql://{db_user}:{db_pass}@/{db_name}?unix_socket={socket_path}"
+        return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={socket_path}"
 
     # Use custom host if provided (e.g., Cloud Run TCP or other env)
     db_host = os.environ.get("DB_HOST")
