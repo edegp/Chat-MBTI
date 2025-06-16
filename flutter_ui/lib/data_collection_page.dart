@@ -241,7 +241,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       // Show phase completion message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('フェーズ ${_currentPhase - 1} 完了！CSVダウンロード開始。フェーズ $_currentPhase を開始します...'),
+          content: Text('フェーズ ${_currentPhase - 1} 完了！フェーズ $_currentPhase を開始します...'),
           backgroundColor: Colors.green,
           duration: const Duration(seconds: 3),
         ),
