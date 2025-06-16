@@ -4,6 +4,10 @@ Test element switching logic in data collection workflow
 """
 
 
+class DummyRepo:
+    pass
+
+
 def test_langgraph_element_calculation():
     """Test LangGraphDriver element calculation logic"""
     questions_per_phase = 10
@@ -32,7 +36,7 @@ def test_data_collection_service_calculation():
 
     print("\n=== DataCollectionService Element Calculation Test ===")
 
-    dc_service = DataCollectionService()
+    dc_service = DataCollectionService(data_collection_repository=DummyRepo())
 
     for question_num in [1, 10, 11, 20, 21, 30, 31, 40, 41, 50]:
         element_id = dc_service.calculate_personality_element_id(question_num)
@@ -62,7 +66,7 @@ def test_workflow_order_mapping():
         # DataCollection logic
         from src.usecase.data_collection_service import DataCollectionService
 
-        dc_service = DataCollectionService()
+        dc_service = DataCollectionService(data_collection_repository=DummyRepo())
         dc_element_id = dc_service.calculate_personality_element_id(question_number)
         dc_is_first = dc_service.is_first_question_of_element_set(question_number)
 

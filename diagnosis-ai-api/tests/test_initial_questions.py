@@ -12,9 +12,13 @@ from src.usecase.data_collection_service import DataCollectionService
 from src.driver.env import ElementsDriver
 
 
+class DummyRepo:
+    pass
+
+
 def test_initial_question_logic():
     """Test the logic for when to use initial_questions"""
-    service = DataCollectionService()
+    service = DataCollectionService(data_collection_repository=DummyRepo())
 
     print("Testing initial question selection logic:")
     print("=" * 50)
