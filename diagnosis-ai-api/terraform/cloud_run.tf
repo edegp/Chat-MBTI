@@ -17,8 +17,7 @@ resource "google_project_iam_member" "cloud_run_sa_permissions" {
     "roles/cloudsql.client",
     "roles/firebase.admin",
     "roles/storage.objectViewer",
-    "roles/storage.objectCreator",
-    "roles/iam.serviceAccountUser"
+    "roles/storage.objectCreator"
   ])
 
   project = var.project_id
@@ -33,12 +32,12 @@ resource "google_storage_bucket_iam_member" "cloud_run_sa_storage_legacy_bucket_
   member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
-resource "google_storage_bucket_iam_member" "cloud_run_sa_storage_legacy_bucket_reader" {
-  bucket = var.gcs_bucket_name
-  role   = "roles/storage.legacyBucketReader"
-  member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+# Allow Cloud Build service account to actAs the Cloud Run service account
+resource "google_service_account_iam_member" "allow_build_act_as_run_sa" {
+  service_account_id = google_service_account.cloud_run_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.cloud_build_sa.email}"
 }
-
 resource "google_cloud_run_v2_service" "main" {
   name     = var.app_name
   location = "asia-northeast1"
@@ -163,3 +162,4 @@ resource "google_cloud_run_v2_service" "main" {
     type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
   }
 }
+
