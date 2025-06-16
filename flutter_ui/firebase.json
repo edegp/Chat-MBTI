@@ -6,7 +6,7 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "chat-mbti",
+          "serviceId": "mbti-diagnosis-api",
           "region": "asia-northeast1"
         }
       },
