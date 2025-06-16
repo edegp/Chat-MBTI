@@ -47,17 +47,17 @@ resource "google_sql_database_instance" "postgres" {
     disk_size                   = 20
     disk_autoresize             = true
     disk_autoresize_limit       = 100
-    deletion_protection_enabled = true
+    deletion_protection_enabled = false
     ip_configuration {
-      ipv4_enabled = true
-      authorized_networks {
-        name  = "all"
-        value = "0.0.0.0/0"
-      }
+      ipv4_enabled    = false
+      private_network = google_compute_network.vpc.id
     }
   }
 
   deletion_protection = false
-  depends_on          = [google_project_service.required_apis]
+  depends_on = [
+    google_project_service.required_apis,
+    google_service_networking_connection.private_vpc_connection
+  ]
 }
 

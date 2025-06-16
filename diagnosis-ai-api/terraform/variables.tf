@@ -116,3 +116,16 @@ variable "gcs_bucket_name" {
   description = "Google Cloud Storage bucket name for data uploads"
   type        = string
 }
+
+variable "vpc_subnet_cidr" {
+  description = "CIDR range for the VPC subnetwork"
+  type        = string
+  default     = "10.8.0.0/24"
+}
+
+variable "vpc_connector_name" {
+  description = "Name of the Serverless VPC Access connector for Cloud Run"
+  type        = string
+  default     = "mbti-vpc-conn"
+}
+

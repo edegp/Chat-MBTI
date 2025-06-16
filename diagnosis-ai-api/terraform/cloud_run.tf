@@ -17,7 +17,8 @@ resource "google_project_iam_member" "cloud_run_sa_permissions" {
     "roles/cloudsql.client",
     "roles/firebase.admin",
     "roles/storage.objectViewer",
-    "roles/storage.objectCreator"
+    "roles/storage.objectCreator",
+    "roles/vpcaccess.user"
   ])
 
   project = var.project_id
@@ -44,6 +45,11 @@ resource "google_cloud_run_v2_service" "main" {
   project  = "chat-mbti-458210"
 
   template {
+    # Enable private VPC connectivity
+    vpc_access {
+      connector = "projects/${var.project_id}/locations/${var.region}/connectors/${var.vpc_connector_name}"
+      egress    = "ALL_TRAFFIC"
+    }
     containers {
       image = "${var.region}-docker.pkg.dev/${var.project_id}/cloud-run-source-deploy/${lower(var.github_repo)}/${var.app_name}:latest"
       ports {

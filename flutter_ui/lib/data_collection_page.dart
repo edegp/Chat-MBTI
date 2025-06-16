@@ -284,7 +284,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       );
       return;
     }
-    if (TargetPlatform.isIOS || TargetPlatform.isAndroid || !kIsWeb) {
+    if (!kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('WebブラウザでのみCSVダウンロードが可能です'),
