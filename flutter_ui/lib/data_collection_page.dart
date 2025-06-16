@@ -7,6 +7,7 @@ import 'package:universal_html/html.dart' as html;
 import 'services/data_collection_api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 
 class DataCollectionPage extends StatefulWidget {
   const DataCollectionPage({super.key});
@@ -220,8 +221,6 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   }
 
   Future<void> _completePhase() async {
-    // Download CSV for the completed phase BEFORE clearing data
-    _downloadPhaseCSV(_currentPhase);
 
     // --- GCSアップロード: フェーズごとにアップロード ---
     await _uploadPhaseCsvToGcs(_currentPhase);
@@ -285,6 +284,15 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       );
       return;
     }
+    if (TargetPlatform.isIOS || TargetPlatform.isAndroid || !kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('WebブラウザでのみCSVダウンロードが可能です'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     // Prepare CSV data
     List<List<dynamic>> csvData = [
@@ -335,63 +343,6 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
         backgroundColor: Colors.green,
       ),
     );
-  }
-
-  void _downloadPhaseCSV(int phaseNumber) {
-    // Use current session data directly since it contains data for the current phase
-    final phaseData = List<Map<String, dynamic>>.from(_currentSessionData);
-
-    print('DEBUG: Downloading CSV for phase $phaseNumber');
-    print('DEBUG: _currentSessionData length: ${_currentSessionData.length}');
-    print('DEBUG: phaseData length: ${phaseData.length}');
-    print('DEBUG: _currentSessionData content: $_currentSessionData');
-
-    if (phaseData.isEmpty) {
-      print('WARNING: No data found for phase $phaseNumber');
-      return;
-    }
-
-    // Prepare CSV data for this phase
-    List<List<dynamic>> csvData = [
-      // Header including personality code
-      ['Participant Name', 'Personality Code', 'Phase', 'Element Type', 'Cycle Number', 'Question Number', 'Question', 'Answer', 'Timestamp', 'Session ID']
-    ];
-
-    final idx = (_currentPhase - 1) % TOTAL_ELEMENTS;
-    final codeLetter = (_personalityCode != null && _personalityCode!.length > idx)
-        ? _personalityCode![idx]
-        : '';
-    // Add data rows
-    for (var item in phaseData) {
-      csvData.add([
-        item['participant_name'],
-        codeLetter,
-        item['phase'],
-        item['element_type'],
-        item['cycle_number'],
-        item['question_number_in_phase'],
-        item['question'],
-        item['answer'],
-        item['timestamp'],
-        item['session_id'],
-      ]);
-    }
-
-    // Convert to CSV string
-    String csvString = const ListToCsvConverter().convert(csvData);
-
-    // Create and download file
-    final bytes = utf8.encode(csvString);
-    final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.document.createElement('a') as html.AnchorElement
-      ..href = url
-      ..style.display = 'none'
-      ..download = 'data_element${(phaseNumber - 1) % TOTAL_ELEMENTS + 1}_phase${phaseNumber}_${_participantName ?? 'anonymous'}_${DateTime.now().toIso8601String().replaceAll(RegExp(r'[:\-T\.]'), '').substring(0, 15)}.csv';
-    html.document.body?.children.add(anchor);
-    anchor.click();
-    html.document.body?.children.remove(anchor);
-    html.Url.revokeObjectUrl(url);
   }
 
   Future<void> _signOut() async {

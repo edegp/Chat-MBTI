@@ -47,7 +47,7 @@ resource "google_sql_database_instance" "postgres" {
     disk_size                   = 20
     disk_autoresize             = true
     disk_autoresize_limit       = 100
-    deletion_protection_enabled = false
+    deletion_protection_enabled = true
     ip_configuration {
       ipv4_enabled = true
       authorized_networks {
