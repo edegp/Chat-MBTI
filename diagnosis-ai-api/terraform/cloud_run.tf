@@ -15,7 +15,10 @@ resource "google_project_iam_member" "cloud_run_sa_permissions" {
   for_each = toset([
     "roles/secretmanager.secretAccessor",
     "roles/cloudsql.client",
-    "roles/firebase.admin"
+    "roles/firebase.admin",
+    "roles/storage.objectViewer",
+    "roles/storage.objectCreator",
+    "roles/iam.serviceAccountUser"
   ])
 
   project = var.project_id
@@ -23,11 +26,17 @@ resource "google_project_iam_member" "cloud_run_sa_permissions" {
   member  = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
-# Allow Cloud Build SA to act as Cloud Run SA for deployments
-resource "google_service_account_iam_member" "cloud_run_sa_act_as" {
-  service_account_id = google_service_account.cloud_run_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.cloud_build_sa.email}"
+#     "roles/storage.legacyBucketWriter"
+resource "google_storage_bucket_iam_member" "cloud_run_sa_storage_legacy_bucket_writer" {
+  bucket = var.gcs_bucket_name
+  role   = "roles/storage.legacyBucketWriter"
+  member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
+}
+
+resource "google_storage_bucket_iam_member" "cloud_run_sa_storage_legacy_bucket_reader" {
+  bucket = var.gcs_bucket_name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
 resource "google_cloud_run_v2_service" "main" {
@@ -107,6 +116,12 @@ resource "google_cloud_run_v2_service" "main" {
             version = "latest"
           }
         }
+      }
+
+      # GCS bucket name for data uploads
+      env {
+        name  = "GCS_BUCKET_NAME"
+        value = var.gcs_bucket_name
       }
       resources {
         limits = {

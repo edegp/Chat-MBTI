@@ -6,6 +6,7 @@ import 'package:csv/csv.dart';
 import 'package:universal_html/html.dart' as html;
 import 'services/data_collection_api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/gestures.dart';
 
 class DataCollectionPage extends StatefulWidget {
   const DataCollectionPage({super.key});
@@ -19,7 +20,33 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   final TextEditingController _textController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _personalityController = TextEditingController();
+  // List of 16 MBTI personality codes
+  static const List<String> _personalityTypes = [
+    'ISTJ','ISFJ','INFJ','INTJ',
+    'ISTP','ISFP','INFP','INTP',
+    'ESTP','ESFP','ENFP','ENTP',
+    'ESTJ','ESFJ','ENFJ','ENTJ'
+  ];
   String? _personalityCode;
+
+  static const Map<String, String> _elementNames = {
+    'ISTJ': '管理者',
+    'ISFJ': '守護者',
+    'INFJ': '提唱者',
+    'INTJ': '建築家',
+    'ISTP': '職人',
+    'ISFP': '芸術家',
+    'INFP': '理想家',
+    'INTP': '論理学者',
+    'ESTP': '起業家',
+    'ESFP': 'エンターテイナー',
+    'ENFP': '活動家',
+    'ENTP': '討論者',
+    'ESTJ': '管理職',
+    'ESFJ': '提供者',
+    'ENFJ': '教師',
+    'ENTJ': '指導者'
+  };
 
   // Data collection parameters - 4 MBTI elements with 10 questions each, repeated 5 times
   static const int QUESTIONS_PER_ELEMENT = 10; // 10 questions per MBTI element
@@ -701,7 +728,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
                 ),
                 const SizedBox(height: 10), // Reduced spacing
                 const Text(
-                  '収集されたデータは独自のAIの学習に使用され、AIの学習以外には使用いたしません。\n\nもしデータの削除を求める場合は、メールアドレス「 info@anful.ai 」の青木まで入力した名前と削除する旨をメールでお伝えください。',
+                  '収集されたデータは独自のAIの学習に使用され、AIの学習以外には使用いたしません。\n\nもしデータの削除を求める場合は、メールアドレス「 info@anful.ai , ogawa.hajime.hyr@gmail.com 」の青木・小川まで入力した名前と削除する旨をメールでお伝えください。',
                   style: TextStyle(
                     fontSize: 13, // Reduced font size
                     height: 1.4, // Reduced line height
@@ -750,8 +777,30 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24), // Reduced spacing
-
+          const SizedBox(height: 12),
+          // Prompt users to take personality test with clickable link
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+              children: [
+                const TextSpan(text: '性格診断がまだの方は '),
+                TextSpan(
+                  text: 'こちら',
+                  style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+                  recognizer: TapGestureRecognizer()
+                    ..onTap = () {
+                      html.window.open(
+                        'https://www.16personalities.com/ja/性格診断テスト',
+                        '_blank',
+                      );
+                    },
+                ),
+                const TextSpan(text: ' から性格診断をしてください'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           // Participant name input
           Container(
             width: double.infinity,
@@ -827,24 +876,32 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey[300]!),
                   ),
-                  child: TextField(
-                    controller: _personalityController,
-                    style: const TextStyle(fontSize: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: DropdownButtonFormField<String>(
+                    value: _personalityCode,
                     decoration: InputDecoration(
-                      hintText: '例: INFP',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       filled: true,
                       fillColor: Colors.white,
                     ),
-                    textCapitalization: TextCapitalization.characters,
-                    textInputAction: TextInputAction.done,
+                    hint: const Text('例: INFP'),
+                    items: _personalityTypes.map((type) => DropdownMenuItem<String>(
+                      value: type,
+                      child: Text(
+                        '$type (${_elementNames[type] ?? ''})',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    )).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _personalityCode = value;
+                        _personalityController.text = value ?? '';
+                      });
+                    },
                   ),
                 ),
               ],

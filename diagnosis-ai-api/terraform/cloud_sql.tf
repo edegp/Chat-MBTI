@@ -48,13 +48,6 @@ resource "google_sql_database_instance" "postgres" {
     disk_autoresize             = true
     disk_autoresize_limit       = 100
     deletion_protection_enabled = false
-
-    backup_configuration {
-      enabled                        = true
-      start_time                     = "03:00"
-      point_in_time_recovery_enabled = true
-    }
-
     ip_configuration {
       ipv4_enabled = true
       authorized_networks {

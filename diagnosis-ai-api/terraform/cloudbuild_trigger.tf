@@ -42,7 +42,7 @@ resource "google_cloudbuild_trigger" "mbti-diagnosis-api-github-trigger" {
     }
   }
 
-  included_files = ["**"]
+  included_files = ["diagnosis-ai-api/**"]
   ignored_files  = ["README.md", "docs/**"]
 
   filename        = "diagnosis-ai-api/terraform/yaml/cloudbuild.yaml"

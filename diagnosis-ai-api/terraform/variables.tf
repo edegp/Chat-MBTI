@@ -111,3 +111,8 @@ variable "ar_repository" {
   description = "Artifact Registry repository name"
   type        = string
 }
+
+variable "gcs_bucket_name" {
+  description = "Google Cloud Storage bucket name for data uploads"
+  type        = string
+}
