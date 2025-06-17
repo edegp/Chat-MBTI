@@ -52,8 +52,8 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   // Data collection parameters - 4 MBTI elements with 10 questions each, repeated 5 times
   static const int QUESTIONS_PER_ELEMENT = 10; // 10 questions per MBTI element
   static const int TOTAL_ELEMENTS = 4;         // 4 MBTI elements (Energy, Mind, Nature, Tactics)
-  static const int CYCLES_PER_COLLECTION = 5;  // Repeat 5 times
-  static const int TOTAL_PHASES = TOTAL_ELEMENTS * CYCLES_PER_COLLECTION; // 20 phases total
+  static const int CYCLES_PER_COLLECTION = 1;
+  static const int TOTAL_PHASES = TOTAL_ELEMENTS * CYCLES_PER_COLLECTION; // 4 phases total
 
   // Current state
   int _currentPhase = 1;
