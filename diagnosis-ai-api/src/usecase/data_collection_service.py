@@ -19,7 +19,7 @@ class DataCollectionService:
 
     # Data collection configuration
     QUESTIONS_PER_SET = 10
-    TOTAL_SETS = 5
+    TOTAL_SETS = 1
     TOTAL_QUESTIONS = QUESTIONS_PER_SET * TOTAL_SETS  # 50 questions total
     ELEMENT_COUNT = 4  # Energy, Mind, Nature, Tactics
 
