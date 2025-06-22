@@ -78,7 +78,7 @@ def retry_on_llm_error(func):
 
 
 def _filter_messages_by_phase(
-    messages: list, current_question_number: int, questions_per_phase: int = 5
+    messages: list, current_question_number: int, questions_per_phase: int = 10
 ) -> list:
     """Filter messages to only include those from the current phase"""
     if current_question_number <= 0:
@@ -129,7 +129,7 @@ class LangGraphDriver:
         llm_port: LLMPort,
         question_repository: QuestionRepositoryPort,
         elements_repository: ElementRepositoryPort,
-        questions_per_phase: int = 5,  # Configurable for different use cases
+        questions_per_phase: int = 10,  # Configurable for different use cases (default 10)
     ):
         self.llm_port = llm_port
         self.question_repository = question_repository
@@ -367,7 +367,7 @@ class LangGraphDriver:
                 },
             )
             filtered_messages = _filter_messages_by_phase(
-                messages, current_question_number
+                messages, current_question_number, self.questions_per_phase
             )
             messages_text = _organize_chat_history(filtered_messages)
             num_options = 3
@@ -508,6 +508,7 @@ class LangGraphDriver:
                             for m in existing_messages
                         ],
                         current_next_order,
+                        self.questions_per_phase,
                     )
                     existing_messages = [
                         Message(**msg) if isinstance(msg, dict) else msg

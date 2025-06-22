@@ -20,7 +20,7 @@ class DataCollectionService:
     # Data collection configuration
     QUESTIONS_PER_SET = 10
     TOTAL_SETS = 1
-    TOTAL_QUESTIONS = QUESTIONS_PER_SET * TOTAL_SETS  # 50 questions total
+    TOTAL_QUESTIONS = QUESTIONS_PER_SET * TOTAL_SETS  # 40 questions total
     ELEMENT_COUNT = 4  # Energy, Mind, Nature, Tactics
 
     def __init__(self, data_collection_repository: DataCollectionRepositoryPort):
