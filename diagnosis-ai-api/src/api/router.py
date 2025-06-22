@@ -543,6 +543,48 @@ async def complete_data_collection_assessment(
         raise error
 
 
+@router.delete("/data-collection/conversation/undo")
+async def undo_last_answer(
+    controller: MBTIController = Depends(get_mbti_controller),
+):
+    """Undo the last answer in data collection conversation"""
+    try:
+        user_id = "data_collection_user"
+        logger.info("Undoing last answer for data collection", extra={"user_id": user_id})
+        
+        result = await controller.undo_last_answer(user_id)
+        
+        if result["status"] == "error":
+            raise ValidationError(result["message"])
+        
+        logger.info(
+            "Last answer undone successfully",
+            extra={
+                "user_id": user_id,
+                "session_id": result.get("session_id"),
+            },
+        )
+        
+        return {
+            "message": result.get("message", "Last answer undone successfully"),
+            "data": {
+                "session_id": result.get("session_id"),
+                "status": result.get("status", "success"),
+                "next_display_order": result.get("next_display_order"),
+            },
+        }
+        
+    except MBTIApplicationError:
+        raise
+    except Exception as e:
+        error = ValidationError(
+            "Failed to undo last answer",
+            {"user_id": user_id, "error": str(e)},
+        )
+        error.log_error(logger)
+        raise error
+
+
 @router.post("/data-collection/upload")
 async def upload_data_collection_csv(
     request: DataCollectionUploadRequest,

@@ -480,6 +480,92 @@ class MBTIConversationService:
                 "status": "error",
             }
 
+    def undo_last_answer(self, user_id: str) -> Dict[str, Any]:
+        """Undo the last answer by decrementing next_display_order while preserving conversation history"""
+        try:
+            logger.info("Undoing last answer", extra={"user_id": user_id})
+            
+            session_id = self.session_repository.get_session_by_user(user_id)
+            if not session_id:
+                raise SessionNotFoundError(
+                    "No active session found for user", {"user_id": user_id}
+                )
+
+            # Check if this is data collection mode
+            is_data_collection = user_id == "data_collection_user"
+            
+            # Select appropriate workflow
+            workflow = (
+                self.data_collection_workflow if is_data_collection else self.workflow
+            )
+
+            # Get current conversation state
+            current_state = workflow.get_conversation_state(session_id)
+            next_order = current_state.get("next_display_order", 0)
+            
+            if next_order <= 1:
+                raise InvalidResponseError(
+                    "Cannot undo: no previous answers to undo",
+                    {"user_id": user_id, "session_id": session_id, "next_order": next_order}
+                )
+            
+            # Remove the last 2 messages from conversation history
+            # This typically includes: user answer and subsequent assistant question
+            messages = current_state.get("messages", [])
+            original_message_count = len(messages)
+            
+            # Remove the last 2 messages if they exist
+            messages_to_remove = min(2, len(messages))
+            if messages_to_remove > 0:
+                messages = messages[:-messages_to_remove]
+                current_state["messages"] = messages
+                logger.info(
+                    f"Removed last {messages_to_remove} messages from conversation history",
+                    extra={
+                        "user_id": user_id,
+                        "session_id": session_id,
+                        "original_count": original_message_count,
+                        "new_count": len(messages)
+                    }
+                )
+            
+            # Decrement next_display_order
+            new_next_order = next_order - 1
+            current_state["next_display_order"] = new_next_order
+            
+            # Update the workflow state
+            workflow.update_conversation_state(session_id, current_state)
+            
+            # For undo operation, return success without trying to find a specific question
+            # The client will get the appropriate question when the next answer is submitted
+            logger.info(
+                "Last answer undone successfully (removed last 2 messages from history)",
+                extra={
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "new_next_order": new_next_order,
+                    "messages_remaining": len(messages),
+                }
+            )
+            
+            return {
+                "status": "success",
+                "message": "Last answer undone successfully",
+                "session_id": session_id,
+                "next_display_order": new_next_order,
+            }
+            
+        except (SessionNotFoundError, InvalidResponseError):
+            # Known custom exceptions are re-raised
+            raise
+        except Exception as e:
+            error = AssessmentError(
+                "Failed to undo last answer due to unexpected error",
+                {"user_id": user_id, "error": str(e), "error_type": type(e).__name__},
+            )
+            error.log_error(logger)
+            raise error
+
     def get_conversation_history(self, user_id: str) -> Dict[str, Any]:
         """Get conversation history for session restoration"""
         try:

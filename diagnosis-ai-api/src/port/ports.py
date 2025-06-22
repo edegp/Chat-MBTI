@@ -37,6 +37,11 @@ class WorkflowPort(ABC):
         pass
 
     @abstractmethod
+    def update_conversation_state(self, session_id: str, state: Dict[str, Any]) -> None:
+        """Update conversation state"""
+        pass
+
+    @abstractmethod
     def get_conversation_options(self, session_id: str) -> List[str]:
         """Get available options for current question"""
         pass

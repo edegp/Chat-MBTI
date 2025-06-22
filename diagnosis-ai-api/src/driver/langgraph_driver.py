@@ -607,6 +607,35 @@ class LangGraphDriver:
             logger.error(f"Failed to get workflow state: {e}")
             raise RuntimeError(f"Failed to get state: {str(e)}")
 
+    def update_state(self, session_id: str, state: Dict[str, Any]) -> None:
+        """Update workflow state"""
+        try:
+            checkpointer = create_checkpointer()
+            config = {"configurable": {"thread_id": session_id}}
+
+            if isinstance(checkpointer, MemorySaver):
+                graph_with_memory = self.graph_builder.compile(
+                    checkpointer=checkpointer
+                )
+                graph_with_memory.update_state(config, state)
+            else:
+                with checkpointer as cp:
+                    cp.setup()
+                    graph_with_memory = self.graph_builder.compile(checkpointer=cp)
+                    graph_with_memory.update_state(config, state)
+
+            logger.info(
+                "Workflow state updated successfully",
+                extra={
+                    "session_id": session_id,
+                    "next_display_order": state.get("next_display_order"),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to update workflow state: {e}")
+            raise RuntimeError(f"Failed to update state: {str(e)}")
+
     def get_options(self, session_id: str) -> List[str]:
         """Get available options for current question"""
         try:

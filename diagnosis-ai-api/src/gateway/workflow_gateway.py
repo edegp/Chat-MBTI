@@ -50,6 +50,13 @@ class WorkflowGateway(WorkflowPort):
         except Exception as e:
             raise RuntimeError(f"Failed to get conversation state: {str(e)}")
 
+    def update_conversation_state(self, session_id: str, state: Dict[str, Any]) -> None:
+        """Update conversation state"""
+        try:
+            self.driver.update_state(session_id, state)
+        except Exception as e:
+            raise RuntimeError(f"Failed to update conversation state: {str(e)}")
+
     def get_conversation_options(self, session_id: str) -> List[str]:
         """Get available options for current question"""
         try:

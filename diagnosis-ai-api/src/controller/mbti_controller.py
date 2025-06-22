@@ -291,6 +291,29 @@ class MBTIController:
             error_response["history"] = []  # 追加フィールド
             return error_response
 
+    async def undo_last_answer(self, user_id: str) -> Dict[str, Any]:
+        """Undo the last answer for data collection"""
+        logger.info(f"Undoing last answer for user: {user_id}")
+
+        if not user_id:
+            error = InvalidInputError("User ID is required")
+            error.log_error(logger)
+            return create_error_response(error)
+
+        try:
+            result = self.mbti_service.undo_last_answer(user_id)
+            logger.info(f"Last answer undone successfully for user: {user_id}")
+            return result
+        except MBTIApplicationError as e:
+            e.log_error(logger)
+            return create_error_response(e)
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while undoing last answer for user {user_id}: {e}"
+            )
+            error = MBTIApplicationError("Internal server error")
+            return create_error_response(error)
+
     async def upload_data_collection_csv(
         self, request: DataCollectionUploadRequest
     ) -> Dict[str, Any]:

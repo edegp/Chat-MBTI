@@ -117,4 +117,19 @@ class DataCollectionApiService {
       return false;
     }
   }
+
+  // 最後の回答を取り消す（サーバー状態を巻き戻す）
+  Future<Map<String, dynamic>> undoLastAnswer() async {
+    final headers = await _getHeaders();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/data-collection/conversation/undo'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Failed to undo last answer: ${response.statusCode}');
+    }
+  }
 }
