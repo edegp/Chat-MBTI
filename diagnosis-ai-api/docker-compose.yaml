@@ -10,6 +10,8 @@ services:
         - action: sync
           path: ./src
           target: /app/src
+        - action: rebuild
+          path: ./app/pyproject.toml
     ports:
       - '8000:8000'
     environment:

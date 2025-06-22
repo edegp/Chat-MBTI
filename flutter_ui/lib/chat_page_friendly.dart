@@ -69,7 +69,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       if (progressData['progress'] > 0 && progressData['progress'] < 1.0) {
         // 途中の会話がある場合、状態を復元
         final questionNumber = progressData['question_number'] ?? 1;
-        final currentPhase = ((questionNumber - 1) ~/ 5) + 1;
+        final currentPhase = ((questionNumber - 1) ~/ 10) + 1;
 
         setState(() {
           _progress = (progressData['progress'] ?? 0.0).toDouble();
@@ -231,9 +231,9 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
       if (data['phase'] == 'question') {
         final newQuestionNumber = data['question_number'] ?? 1;
-        final newPhase = ((newQuestionNumber - 1) ~/ 5) + 1;
+        final newPhase = ((newQuestionNumber - 1) ~/ 10) + 1;
 
-        // Check if we need to transition to a new phase (every 5 questions)
+        // Check if we need to transition to a new phase (every 10 questions)
         if (newPhase > _currentPhase) {
           // Clear history when entering a new phase
           setState(() {
@@ -245,7 +245,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Phase $_currentPhase開始 (質問 ${(newPhase-1)*5 + 1}-${newPhase*5})'),
+                content: Text('Phase $_currentPhase開始 (質問 ${(newPhase-1)*10 + 1}-${newPhase*10})'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
@@ -350,8 +350,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       final history = historyData['history'] as List<dynamic>;
 
       // Determine phase boundaries for questions
-      final phaseStartIndex = (_currentPhase - 1) * 5;
-      final phaseEndIndex = _currentPhase * 5;
+      final phaseStartIndex = (_currentPhase - 1) * 10;
+      final phaseEndIndex = _currentPhase * 10;
       final phaseStartQuestion = phaseStartIndex + 1;
       final phaseEndQuestion = phaseEndIndex;
       // Build filtered history based on phase boundaries

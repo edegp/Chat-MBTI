@@ -143,7 +143,7 @@ uv run pytest ...
 
 - Flutter UI:
 
-  - 4 要素 ×10 問 ×5 サイクル（全 20 フェーズ）の MBTI 質問応答データ収集
+  - 4 要素 ×10 問（全 4 フェーズ）の MBTI 質問応答データ収集
   - 10 問ごとに SharedPreferences へ自動保存・復元
   - フェーズ単位／全体の CSV 出力ボタン実装
   - 16 性格コード入力フォーム追加、CSV ヘッダ＆行に反映
@@ -157,3 +157,4 @@ uv run pytest ...
   - コントローラとサービスで personality*code を受け取り、保存ディレクトリを mbti_data/{participant}*{code}に変更
   - `data-collection/upload`エンドポイントで CSV 受信＆GCS アップロード処理
   - pytest テストの更新が必要（personality_code 対応）
+  - TDD（テスト駆動開発）での実装

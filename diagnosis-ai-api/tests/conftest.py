@@ -12,6 +12,10 @@ from unittest.mock import patch, Mock
 # Set up environment variables for testing before any imports
 os.environ.setdefault("GEMINI_API_KEY", "test-api-key-for-testing")
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/test")
+os.environ.setdefault("DB_APP_USER", "postgres")
+os.environ.setdefault("DB_APP_PASS", "postgres")
+os.environ.setdefault("DB_ADMIN_USER", "postgres")
+os.environ.setdefault("DB_ADMIN_PASS", "postgres")
 
 
 @pytest.fixture(scope="session", autouse=True)

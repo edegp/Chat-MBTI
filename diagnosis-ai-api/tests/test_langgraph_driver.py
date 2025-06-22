@@ -5,23 +5,8 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from src.driver.langgraph_driver import LangGraphDriver, _filter_messages_by_ph    def test_フェーズ計算の境界ケース(self):
-        """フェーズ計算の境界ケースをテスト（10問制）"""
-        # フェーズ1: 質問1-10
-        assert ((1 - 1) // 10) + 1 == 1
-        assert ((10 - 1) // 10) + 1 == 1
-
-        # フェーズ2: 質問11-20
-        assert ((11 - 1) // 10) + 1 == 2
-        assert ((20 - 1) // 10) + 1 == 2
-
-        # フェーズ3: 質問21-30
-        assert ((21 - 1) // 10) + 1 == 3
-        assert ((30 - 1) // 10) + 1 == 3
-
-        # フェーズ4: 質問31-40
-        assert ((31 - 1) // 10) + 1 == 4
-        assert ((40 - 1) // 10) + 1 == 4ase.type import Message
+from src.driver.langgraph_driver import LangGraphDriver, _filter_messages_by_phase
+from src.usecase.type import Message
 
 
 class Test_フェーズコンテキストフィルタリング:
@@ -37,7 +22,7 @@ class Test_フェーズコンテキストフィルタリング:
         )
 
     def test_フェーズ1のメッセージフィルタリング(self):
-        """フェーズ1（質問1-10）のメッセージフィルタリングをテスト"""
+        """フェーズ1（質問1-5）のメッセージフィルタリングをテスト"""
         # 準備: 8つのメッセージを作成（4つの質問＋4つの回答）
         messages = [
             {"role": "assistant", "content": "Question 1"},
@@ -51,7 +36,7 @@ class Test_フェーズコンテキストフィルタリング:
         ]
 
         # 実行: 質問3のフィルタリング（フェーズ1に属する）
-        filtered = _filter_messages_by_phase(messages, 3)
+        filtered = _filter_messages_by_phase(messages, 3, 10)
 
         # 検証: 質問1-3とその回答を含むべき（フェーズ1内の質問3まで）
         assert len(filtered) == 6  # 3つの質問＋3つの回答
@@ -64,7 +49,7 @@ class Test_フェーズコンテキストフィルタリング:
 
     def test_フェーズ2のメッセージフィルタリング(self):
         """フェーズ2（質問11-20）のメッセージフィルタリングをテスト"""
-        # 準備: 24のメッセージを作成（12つの質問＋12つの回答）
+        # 準備: 26のメッセージを作成（13つの質問＋13つの回答）
         messages = []
         for i in range(
             1, 14
@@ -73,7 +58,7 @@ class Test_フェーズコンテキストフィルタリング:
             messages.append({"role": "user", "content": f"Answer {i}"})
 
         # 実行: 質問13のフィルタリング（フェーズ2に属する）
-        filtered = _filter_messages_by_phase(messages, 13)
+        filtered = _filter_messages_by_phase(messages, 13, 10)
 
         # 検証: フェーズ2から質問11-13とその回答を含むべき
         assert len(filtered) == 6  # フェーズ2の質問11-13とその回答
@@ -86,14 +71,14 @@ class Test_フェーズコンテキストフィルタリング:
 
     def test_フェーズ3のメッセージフィルタリング(self):
         """フェーズ3（質問21-30）のメッセージフィルタリングをテスト"""
-        # 準備: 48のメッセージを作成（24の質問＋24の回答）
+        # 準備: 46のメッセージを作成（23の質問＋23の回答）
         messages = []
-        for i in range(1, 25):  # 1-24の質問（フェーズ1,2,3の質問を含む）
+        for i in range(1, 24):  # 1-23の質問（フェーズ1,2,3の質問を含む）
             messages.append({"role": "assistant", "content": f"Question {i}"})
             messages.append({"role": "user", "content": f"Answer {i}"})
 
         # 実行: 質問23のフィルタリング（フェーズ3に属する）
-        filtered = _filter_messages_by_phase(messages, 23)
+        filtered = _filter_messages_by_phase(messages, 23, 10)
 
         # 検証: フェーズ3から質問21-23とその回答を含むべき
         assert len(filtered) == 6  # フェーズ3の質問21-23とその回答
@@ -113,7 +98,7 @@ class Test_フェーズコンテキストフィルタリング:
             messages.append({"role": "user", "content": f"Answer {i}"})
 
         # 実行: 質問38のフィルタリング（フェーズ4に属する）
-        filtered = _filter_messages_by_phase(messages, 38)
+        filtered = _filter_messages_by_phase(messages, 38, 10)
 
         # 検証: フェーズ4から質問31-38とその回答を含むべき
         assert len(filtered) == 16  # フェーズ4の質問31-38とその回答
@@ -128,65 +113,67 @@ class Test_フェーズコンテキストフィルタリング:
         messages = []
 
         # 実行・検証: 各フェーズの最初の質問は空のコンテキストを持つべき
-        assert _filter_messages_by_phase(messages, 1) == []  # フェーズ1開始
-        assert _filter_messages_by_phase(messages, 11) == []  # フェーズ2開始
-        assert _filter_messages_by_phase(messages, 21) == []  # フェーズ3開始
-        assert _filter_messages_by_phase(messages, 31) == []  # フェーズ4開始
+        assert _filter_messages_by_phase(messages, 1, 10) == []  # フェーズ1開始
+        assert _filter_messages_by_phase(messages, 11, 10) == []  # フェーズ2開始
+        assert _filter_messages_by_phase(messages, 21, 10) == []  # フェーズ3開始
+        assert _filter_messages_by_phase(messages, 31, 10) == []  # フェーズ4開始
 
     def test_無効な質問番号でのフィルタリング(self):
         """無効な質問番号でのフィルタリングをテスト"""
         messages = [{"role": "assistant", "content": "Question 1"}]
 
         # 実行・検証: 無効な質問番号は空を返すべき
-        assert _filter_messages_by_phase(messages, 0) == []
-        assert _filter_messages_by_phase(messages, -1) == []
+        assert _filter_messages_by_phase(messages, 0, 10) == []
+        assert _filter_messages_by_phase(messages, -1, 10) == []
 
     @patch("src.driver.langgraph_driver.logger")
     def test_質問生成ノードがフィルタリングされたコンテキストを使用(self, mock_logger):
         """質問生成ノードがフィルタリングされたメッセージを使用することをテスト"""
         # 準備: 複数フェーズにわたるメッセージを含む状態を作成
         messages = []
-        for i in range(1, 8):  # 2つのフェーズにわたる7つの質問
+        for i in range(1, 13):  # 2つのフェーズにわたる12の質問
             messages.append(Message(role="assistant", content=f"Question {i}"))
             messages.append(Message(role="user", content=f"Answer {i}"))
 
         state = {
             "messages": messages,
-            "next_display_order": 8,  # 質問8を投げようとしている（フェーズ2）
+            "next_display_order": 13,  # 質問13を投げようとしている（フェーズ2）
             "session_id": "test_session",
             "personality_element_id": 1,
             "answers": {},
         }
 
-        self.mock_llm_port.generate_question.return_value = "Generated Question 8"
-        self.mock_question_repo.save_question.return_value = "q8_id"
+        self.mock_llm_port.generate_question.return_value = "Generated Question 13"
+        self.mock_question_repo.save_question.return_value = "q13_id"
 
         # 実行: 質問生成ノードを呼び出し
         self.driver._generate_question_node(state)  # 戻り値は使用しない
 
-        # 検証: LLMはフィルタリングされたコンテキストで呼び出されるべき（質問8より前のフェーズ1のメッセージのみ）
+        # 検証: LLMはフィルタリングされたコンテキストで呼び出されるべき（質問13より前のフェーズ2のメッセージのみ）
         args, kwargs = self.mock_llm_port.generate_question.call_args
         chat_history = args[0]
 
-        # フェーズ1から質問8より前のメッセージを含むべき（質問1-7）
-        assert "Question 1" in chat_history
-        assert "Question 7" in chat_history
-        assert "Question 8" not in chat_history  # 質問8は生成中
+        # フェーズ2から質問13より前のメッセージのみを含むべき（質問11-12）
+        assert "Question 11" in chat_history
+        assert "Question 12" in chat_history
+        assert "Question 13" not in chat_history  # 質問13は生成中
+        assert "Question 1\n" not in chat_history  # フェーズ1から
+        assert "Question 10\n" not in chat_history  # フェーズ1から
 
     @patch("src.driver.langgraph_driver.logger")
     def test_選択肢生成ノードがフィルタリングされたコンテキストを使用(
         self, mock_logger
     ):
         """選択肢生成ノードがフィルタリングされたメッセージを使用することをテスト"""
-        # 準備: 2つのフェーズにわたるメッセージを含む状態を作成
+        # 準備: 3つのフェーズにわたるメッセージを含む状態を作成
         messages = []
-        for i in range(1, 22):  # 2つのフェーズにわたる21の質問
+        for i in range(1, 23):  # 3つのフェーズにわたる22の質問
             messages.append(Message(role="assistant", content=f"Question {i}"))
             messages.append(Message(role="user", content=f"Answer {i}"))
 
         state = {
             "messages": messages,
-            "next_display_order": 22,  # 現在質問22（フェーズ3）
+            "next_display_order": 23,  # 現在質問23（フェーズ3）
             "options": [],
         }
 
@@ -195,38 +182,39 @@ class Test_フェーズコンテキストフィルタリング:
         # 実行: 選択肢生成ノードを呼び出し
         self.driver._generate_options_node(state)  # 戻り値は使用しない
 
-        # 検証: LLMはフィルタリングされたコンテキストで呼び出されるべき（質問22より前のフェーズ3のメッセージのみ）
+        # 検証: LLMはフィルタリングされたコンテキストで呼び出されるべき（質問23より前のフェーズ3のメッセージのみ）
         # generate_optionsは3つの選択肢のために3回呼び出される
         first_call_args = self.mock_llm_port.generate_options.call_args_list[0]
         messages_text = first_call_args[0][0]
 
-        # フェーズ3から質問22より前のメッセージのみを含むべき（質問21）
+        # フェーズ3から質問23より前のメッセージのみを含むべき（質問21-22）
         assert "Question 21" in messages_text
+        assert "Question 22" in messages_text
         assert (
-            "Question 22" not in messages_text
-        )  # 質問22は生成中なのでコンテキストにない
+            "Question 23" not in messages_text
+        )  # 質問23は生成中なのでコンテキストにない
         assert "Question 1\n" not in messages_text and messages_text.startswith(
             "assistant: Question 21"
         )  # フェーズ1から
-        assert "Question 20" not in messages_text  # フェーズ2から
+        assert "Question 20\n" not in messages_text  # フェーズ2から
 
     def test_フェーズ計算の境界ケース(self):
-        """境界の質問番号でのフェーズ計算をテスト"""
-        # フェーズ1: 質問1-5
-        assert ((1 - 1) // 5) + 1 == 1
-        assert ((5 - 1) // 5) + 1 == 1
+        """境界の質問番号でのフェーズ計算をテスト（10問制）"""
+        # フェーズ1: 質問1-10
+        assert ((1 - 1) // 10) + 1 == 1
+        assert ((10 - 1) // 10) + 1 == 1
 
-        # フェーズ2: 質問6-10
-        assert ((6 - 1) // 5) + 1 == 2
-        assert ((10 - 1) // 5) + 1 == 2
+        # フェーズ2: 質問11-20
+        assert ((11 - 1) // 10) + 1 == 2
+        assert ((20 - 1) // 10) + 1 == 2
 
-        # フェーズ3: 質問11-15
-        assert ((11 - 1) // 5) + 1 == 3
-        assert ((15 - 1) // 5) + 1 == 3
+        # フェーズ3: 質問21-30
+        assert ((21 - 1) // 10) + 1 == 3
+        assert ((30 - 1) // 10) + 1 == 3
 
-        # フェーズ4: 質問16-20
-        assert ((16 - 1) // 5) + 1 == 4
-        assert ((20 - 1) // 5) + 1 == 4
+        # フェーズ4: 質問31-40
+        assert ((31 - 1) // 10) + 1 == 4
+        assert ((40 - 1) // 10) + 1 == 4
 
     def test_フェーズ遷移時のコンテキストリセット(self):
         """フェーズ遷移中にコンテキストが適切にリセットされることをテスト（10問制）"""
@@ -239,7 +227,7 @@ class Test_フェーズコンテキストフィルタリング:
             phase1_messages.append({"role": "user", "content": f"Phase 1 Answer {i}"})
 
         # 実行: フェーズ2の開始（質問11）用にフィルタリング
-        filtered_for_phase2 = _filter_messages_by_phase(phase1_messages, 11)
+        filtered_for_phase2 = _filter_messages_by_phase(phase1_messages, 11, 10)
 
         # 検証: 空であるべき（新しいフェーズのフレッシュスタート）
         assert len(filtered_for_phase2) == 0
@@ -252,7 +240,7 @@ class Test_フェーズコンテキストフィルタリング:
 
         # 実行: フェーズ2の継続（質問12）用にフィルタリング
         filtered_for_phase2_continue = _filter_messages_by_phase(
-            phase2_start_messages, 12
+            phase2_start_messages, 12, 10
         )
 
         # 検証: フェーズ2のメッセージのみを含むべき
