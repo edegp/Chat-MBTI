@@ -175,17 +175,8 @@ class LangGraphDriver:
 
         # Use initial_questions for the first question of each element set
         if is_first_question_of_phase:
-            # For data collection mode with 10 questions per phase, calculate correct element ID
-            if self.questions_per_phase == 10:
-                # Calculate correct element ID based on current order for data collection
-                # current_order 0: Element 1, current_order 10: Element 2, etc.
-                element_id = ((current_order // self.questions_per_phase) % 4) + 1
-                logger.info(
-                    f"Data collection mode: current_order={current_order}, calculated element_id={element_id}"
-                )
-            else:
-                # Standard mode: use the element ID from state
-                element_id = state.get("personality_element_id", 1)
+            # Standard mode: use the element ID from state
+            element_id = state.get("personality_element_id", 1)
 
             question = self.elements_repository.get_initial_question(element_id)
             qid = self.question_repository.save_question(

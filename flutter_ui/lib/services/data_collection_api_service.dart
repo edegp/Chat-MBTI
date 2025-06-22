@@ -21,18 +21,11 @@ class DataCollectionApiService {
   Future<Map<String, dynamic>> startConversation({int? elementId}) async {
     final headers = await _getHeaders();
     final uri = elementId != null
-        ? Uri.parse('$baseUrl/data-collection/conversation/start?element_id=$elementId')
-        : Uri.parse('$baseUrl/data-collection/conversation/start');
-    final response = await http.get(
-      uri,
-      headers: headers,
-    );
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Failed to start conversation: ${response.statusCode}');
-    }
+      ? Uri.parse('$baseUrl/data-collection/conversation/start?element_id=$elementId')
+      : Uri.parse('$baseUrl/data-collection/conversation/start');
+    final response = await http.get(uri, headers: headers);
+    if (response.statusCode == 200) return json.decode(response.body);
+    throw Exception('Failed to start conversation: ${response.statusCode}');
   }
 
   // 回答オプションを取得

@@ -69,10 +69,12 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   // Data storage
   List<Map<String, dynamic>> _collectedData = [];
   List<Map<String, dynamic>> _currentSessionData = [];
-  List<List<String>> _optionsHistory = [];  // track options per question for back navigation
+  List<List<String>> _optionsHistory = [];  // track options per question
+  List<String> _questionHistory = [];      // track questions for back navigation
   // History per phase for session data and options, to support back navigation across phase boundaries
   List<List<Map<String, dynamic>>> _phaseSessionHistory = [];
   List<List<List<String>>> _phaseOptionsHistory = [];
+  List<List<String>> _phaseQuestionHistory = [];
 
   @override
   void initState() {
@@ -133,6 +135,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       _currentQuestionInPhase = 1;
       _currentSessionData.clear();
       _optionsHistory.clear();
+      _questionHistory.clear();
     });
 
     try {
@@ -146,8 +149,13 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
         _sessionId = response['data']['session_id'];
         _isLoading = false;
       });
-
+      // 初回質問を履歴に追加
+      if (_currentQuestion != null) _questionHistory.add(_currentQuestion!);
       await _getOptions();
+      // 初回選択肢を履歴に追加
+      setState(() {
+        _optionsHistory.add(_currentOptions);
+      });
 
     } catch (e) {
       setState(() {
@@ -163,7 +171,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       final options = List<String>.from(response['data']['options'] ?? []);
       setState(() {
         _currentOptions = options;
-        _optionsHistory.add(options);
+        // _optionsHistoryへのpushはsubmitAnswerで行う
       });
     } catch (e) {
       setState(() {
@@ -179,7 +187,6 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
     });
 
     try {
-      // Record the Q&A pair
       final newEntry = {
         'participant_name': _participantName,
         'phase': _currentPhase,
@@ -191,14 +198,10 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
         'timestamp': DateTime.now().toIso8601String(),
         'session_id': _sessionId,
       };
-
       _currentSessionData.add(newEntry);
-
-      print('DEBUG: Added entry to _currentSessionData: $newEntry');
-      print('DEBUG: _currentSessionData now has ${_currentSessionData.length} entries');
+      _optionsHistory.add(_currentOptions); // push options history
 
       if (_currentQuestionInPhase < QUESTIONS_PER_ELEMENT) {
-        // Continue with next question in current element
         final response = await _apiService.submitAnswer(answer);
 
         setState(() {
@@ -206,10 +209,10 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
           _currentQuestionInPhase++;
           _isLoading = false;
         });
-
+        // 新しい質問を履歴に追加
+        if (_currentQuestion != null) _questionHistory.add(_currentQuestion!);
         await _getOptions();
       } else {
-        // Element/Phase completed
         await _completePhase();
       }
     } catch (e) {
@@ -222,15 +225,15 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
 
   Future<void> _completePhase() async {
 
-    // --- GCSアップロード: フェーズごとにアップロード ---
     await _uploadPhaseCsvToGcs(_currentPhase);
 
-    // Add current session data to collected data
     _collectedData.addAll(_currentSessionData);
 
     // Save completed phase session data and options history for back navigation
     _phaseSessionHistory.add(List<Map<String, dynamic>>.from(_currentSessionData));
     _phaseOptionsHistory.add(List<List<String>>.from(_optionsHistory));
+    // Save question history for this phase
+    _phaseQuestionHistory.add(List<String>.from(_questionHistory));
 
     if (_currentPhase < TOTAL_PHASES) {
       // Move to next phase
@@ -570,35 +573,37 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'フェーズ $_currentPhase / $TOTAL_PHASES',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  if (_isCollectionInProgress) ...[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      '${_getCurrentElementType()} (${_getCurrentCycle()}回目)',
+                      'フェーズ $_currentPhase / $TOTAL_PHASES',
                       style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.purple,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
                       ),
                     ),
-                    Text(
-                      '質問 $_currentQuestionInPhase / $QUESTIONS_PER_ELEMENT',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Colors.black54,
+                    if (_isCollectionInProgress) ...[
+                      Text(
+                        '${_getCurrentElementType()} (${_getCurrentCycle()}回目)',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.purple,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                      Text(
+                        '質問 $_currentQuestionInPhase / $QUESTIONS_PER_ELEMENT',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -930,7 +935,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back),
-              onPressed: _currentQuestionInPhase > 1 && !_isLoading ? _goBack : null,
+              onPressed: (!_isLoading && (_currentQuestionInPhase > 1 || _currentPhase > 1)) ? _goBack : null,
             ),
             Expanded(
               child: _currentQuestion != null
@@ -1319,42 +1324,34 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
     );
   }
 
-  // Navigate back one question in current phase
+  // Navigate back one question in current phase, resync server state by replaying answers
   void _goBack() {
-    if (_currentQuestionInPhase > 1) {
-      // Back within the same phase
       setState(() {
-        _currentSessionData.removeLast();
-        _optionsHistory.removeLast();
-        _currentQuestionInPhase--;
-        final prevEntry = _currentSessionData.isNotEmpty ? _currentSessionData.last : null;
-        if (prevEntry != null) {
-          _currentQuestion = prevEntry['question'] as String?;
-          _sessionId = prevEntry['session_id'] as String?;
+        if (_currentQuestionInPhase > 1) {
+          _currentQuestionInPhase--;
+          // 履歴をひとつだけ戻す
+          _currentSessionData.removeLast();
+          _questionHistory.removeLast();
+          _optionsHistory.removeLast();
+          // 表示を復元
+          _currentQuestion = _questionHistory.last;
+          _currentOptions = _optionsHistory.last;
+          _sessionId = _currentSessionData.isNotEmpty
+            ? _currentSessionData.last['session_id'] as String?
+            : _sessionId;
+        } else if (_currentPhase > 1) {
+          // 前フェーズへ
+          _currentPhase--;
+          _currentSessionData = _phaseSessionHistory.removeLast();
+          _questionHistory = _phaseQuestionHistory.removeLast();
+          _optionsHistory = _phaseOptionsHistory.removeLast();
+          _currentQuestionInPhase = QUESTIONS_PER_ELEMENT;
+          _currentQuestion = _questionHistory.last;
+          _currentOptions = _optionsHistory.last;
+          _sessionId = _currentSessionData.last['session_id'] as String?;
         }
-        _currentOptions = _optionsHistory.isNotEmpty ? _optionsHistory.last : [];
-        _error = null;
-        _isLoading = false;
-      });
-    } else if (_currentPhase > 1) {
-      // Back to the last question of the previous phase
-      setState(() {
-        // Move to previous phase
-        _currentPhase--;
-        // Restore session data and options history for that phase
-        _currentSessionData.clear();
-        _currentSessionData.addAll(_phaseSessionHistory.removeLast());
-        _optionsHistory.clear();
-        _optionsHistory.addAll(_phaseOptionsHistory.removeLast());
-        // Jump to last question in that phase
-        _currentQuestionInPhase = QUESTIONS_PER_ELEMENT;
-        final prevEntry = _currentSessionData.last;
-        _currentQuestion = prevEntry['question'] as String?;
-        _sessionId = prevEntry['session_id'] as String?;
-        _currentOptions = _optionsHistory.last;
         _error = null;
         _isLoading = false;
       });
     }
-  }
 }
