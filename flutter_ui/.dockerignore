@@ -1,0 +1,34 @@
+# Flutter specific
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+.metadata
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Firebase
+firebase-debug.log
+.firebase/
+
+# Development files
+flutter_ui.iml
+android/
+ios/
+linux/
+macos/
+windows/
+test/

@@ -6,6 +6,8 @@ without dependencies on external frameworks or infrastructure.
 
 import logging
 from typing import Dict, Any, List
+from langchain_core.messages import RemoveMessage
+
 from ..port.ports import (
     WorkflowPort,
     QuestionRepositoryPort,
@@ -13,6 +15,7 @@ from ..port.ports import (
     ElementRepositoryPort,
 )
 from .type import Message
+
 from .data_collection_service import DataCollectionService
 from ..exceptions import (
     SessionNotFoundError,
@@ -480,10 +483,10 @@ class MBTIConversationService:
                 "status": "error",
             }
 
-    def undo_last_answer(self, user_id: str) -> Dict[str, Any]:
-        """Undo the last answer by decrementing next_display_order while preserving conversation history"""
+    def undo_last_answer(self, user_id: str, steps: int = 1) -> Dict[str, Any]:
+        """Undo the last answer(s) by removing messages from conversation history"""
         try:
-            logger.info("Undoing last answer", extra={"user_id": user_id})
+            logger.info(f"Undoing {steps} step(s)", extra={"user_id": user_id})
 
             session_id = self.session_repository.get_session_by_user(user_id)
             if not session_id:
@@ -503,60 +506,65 @@ class MBTIConversationService:
             current_state = workflow.get_conversation_state(session_id)
             next_order = current_state.get("next_display_order", 0)
 
-            if next_order <= 1:
+            if next_order < steps:
                 raise InvalidResponseError(
-                    "Cannot undo: no previous answers to undo",
+                    f"Cannot undo {steps} step(s): only {next_order} answers available",
                     {
                         "user_id": user_id,
                         "session_id": session_id,
                         "next_order": next_order,
+                        "requested_steps": steps,
                     },
                 )
 
-            # Remove the last 2 messages from conversation history
-            # This typically includes: user answer and subsequent assistant question
+            # Calculate messages to remove (2 messages per step: user answer + assistant question)
+            messages_to_remove = steps * 2
             messages = current_state.get("messages", [])
             original_message_count = len(messages)
 
-            # Remove the last 2 messages if they exist
-            messages_to_remove = min(2, len(messages))
-            if messages_to_remove > 0:
-                messages = messages[:-messages_to_remove]
-                current_state["messages"] = messages
+            # Remove the specified number of messages if they exist
+            actual_messages_to_remove = min(messages_to_remove, len(messages))
+            if actual_messages_to_remove > 0:
+                current_state["messages"] = [
+                    RemoveMessage(id=msg.id)
+                    for msg in messages[-actual_messages_to_remove:]
+                ]
                 logger.info(
-                    f"Removed last {messages_to_remove} messages from conversation history",
+                    f"Removed last {actual_messages_to_remove} messages from conversation history for {steps} step(s)",
                     extra={
                         "user_id": user_id,
                         "session_id": session_id,
                         "original_count": original_message_count,
-                        "new_count": len(messages),
+                        "removed_count": actual_messages_to_remove,
+                        "steps": steps,
                     },
                 )
 
-            # Decrement next_display_order
-            new_next_order = next_order - 1
+            # Decrement next_display_order by the number of steps
+            new_next_order = next_order - steps
             current_state["next_display_order"] = new_next_order
 
             # Update the workflow state
             workflow.update_conversation_state(session_id, current_state)
 
-            # For undo operation, return success without trying to find a specific question
-            # The client will get the appropriate question when the next answer is submitted
             logger.info(
-                "Last answer undone successfully (removed last 2 messages from history)",
+                f"Last {steps} answer(s) undone successfully",
                 extra={
                     "user_id": user_id,
                     "session_id": session_id,
                     "new_next_order": new_next_order,
-                    "messages_remaining": len(messages),
+                    "messages_remaining": len(messages) - actual_messages_to_remove,
+                    "steps_undone": steps,
                 },
             )
 
             return {
                 "status": "success",
-                "message": "Last answer undone successfully",
+                "message": f"Last {steps} answer(s) undone successfully",
                 "session_id": session_id,
                 "next_display_order": new_next_order,
+                "steps_undone": steps,
+                "messages_removed": actual_messages_to_remove,
             }
 
         except (SessionNotFoundError, InvalidResponseError):

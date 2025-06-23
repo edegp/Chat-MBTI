@@ -119,10 +119,10 @@ class DataCollectionApiService {
   }
 
   // 最後の回答を取り消す（サーバー状態を巻き戻す）
-  Future<Map<String, dynamic>> undoLastAnswer() async {
+  Future<Map<String, dynamic>> undoLastAnswer({int steps = 1}) async {
     final headers = await _getHeaders();
     final response = await http.delete(
-      Uri.parse('$baseUrl/data-collection/conversation/undo'),
+      Uri.parse('$baseUrl/data-collection/conversation/undo?steps=$steps'),
       headers: headers,
     );
 

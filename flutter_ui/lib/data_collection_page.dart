@@ -1,13 +1,20 @@
 // ignore_for_file: constant_identifier_names, prefer_final_fields, avoid_print, use_build_context_synchronously, non_constant_identifier_names, unused_local_variable
 
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:csv/csv.dart';
-import 'package:universal_html/html.dart' as html;
-import 'services/data_collection_api_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
+
+// Import new components
+import 'models/navigation_state.dart';
+import 'constants/data_collection_constants.dart';
+import 'controllers/navigation_controller.dart';
+import 'controllers/data_collection_controller.dart';
+import 'widgets/data_collection_app_bar.dart';
+import 'widgets/progress_header.dart';
+import 'widgets/navigation_buttons.dart';
+import 'widgets/question_card.dart';
+import 'widgets/answer_options.dart';
+import 'widgets/custom_answer_input.dart';
+import 'widgets/start_view.dart';
 
 class DataCollectionPage extends StatefulWidget {
   const DataCollectionPage({super.key});
@@ -17,43 +24,14 @@ class DataCollectionPage extends StatefulWidget {
 }
 
 class _DataCollectionPageState extends State<DataCollectionPage> {
-  final DataCollectionApiService _apiService = DataCollectionApiService();
+  // Controllers
+  final NavigationController _navigationController = NavigationController();
+  final DataCollectionController _dataController = DataCollectionController();
   final TextEditingController _textController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _personalityController = TextEditingController();
-  // List of 16 MBTI personality codes
-  static const List<String> _personalityTypes = [
-    'ISTJ','ISFJ','INFJ','INTJ',
-    'ISTP','ISFP','INFP','INTP',
-    'ESTP','ESFP','ENFP','ENTP',
-    'ESTJ','ESFJ','ENFJ','ENTJ'
-  ];
+
   String? _personalityCode;
-
-  static const Map<String, String> _elementNames = {
-    'ISTJ': '管理者',
-    'ISFJ': '守護者',
-    'INFJ': '提唱者',
-    'INTJ': '建築家',
-    'ISTP': '職人',
-    'ISFP': '芸術家',
-    'INFP': '理想家',
-    'INTP': '論理学者',
-    'ESTP': '起業家',
-    'ESFP': 'エンターテイナー',
-    'ENFP': '活動家',
-    'ENTP': '討論者',
-    'ESTJ': '管理職',
-    'ESFJ': '提供者',
-    'ENFJ': '教師',
-    'ENTJ': '指導者'
-  };
-
-  // Data collection parameters - 4 MBTI elements with 10 questions each, repeated 5 times
-  static const int QUESTIONS_PER_ELEMENT = 10; // 10 questions per MBTI element
-  static const int TOTAL_ELEMENTS = 4;         // 4 MBTI elements (Energy, Mind, Nature, Tactics)
-  static const int CYCLES_PER_COLLECTION = 1;
-  static const int TOTAL_PHASES = TOTAL_ELEMENTS * CYCLES_PER_COLLECTION; // 4 phases total
 
   // Current state
   int _currentPhase = 1;
@@ -62,6 +40,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   List<String> _currentOptions = [];
   String? _sessionId;
   bool _isLoading = false;
+  String _loadingMessage = '読み込み中...';
   bool _isCollectionInProgress = false;
   String? _error;
   String? _participantName;
@@ -69,16 +48,17 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   // Data storage
   List<Map<String, dynamic>> _collectedData = [];
   List<Map<String, dynamic>> _currentSessionData = [];
-  List<List<String>> _optionsHistory = [];  // track options per question
-  List<String> _questionHistory = [];      // track questions for back navigation
+  List<List<String>> _optionsHistory = [];
+  List<String> _questionHistory = [];
+
   // History per phase for session data and options, to support back navigation across phase boundaries
   List<List<Map<String, dynamic>>> _phaseSessionHistory = [];
   List<List<List<String>>> _phaseOptionsHistory = [];
   List<List<String>> _phaseQuestionHistory = [];
 
   // Lazy sync state management
-  bool _hasServerDesync = false;  // Track if local state diverges from server
-  String? _lastAnswerBeforeBack;  // Store answer before going back for comparison
+  bool _hasServerDesync = false;
+  String? _lastAnswerBeforeBack;
 
   @override
   void initState() {
@@ -94,6 +74,24 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
     super.dispose();
   }
 
+  Future<void> _restoreProgressFromPrefs() async {
+    final savedData = await _dataController.restoreProgressFromPrefs();
+    if (savedData != null) {
+      setState(() {
+        _participantName = savedData['participantName'];
+        _personalityCode = savedData['personalityCode'];
+        if (_personalityCode != null) {
+          _personalityController.text = _personalityCode!;
+        }
+        _currentPhase = savedData['currentPhase'] ?? 1;
+        _collectedData = List<Map<String, dynamic>>.from(savedData['collectedData'] ?? []);
+        _isCollectionInProgress = true;
+      });
+      // Resume from where we left off
+      await _startNewPhase();
+    }
+  }
+
   Future<void> _startDataCollection() async {
     // Validate participant name
     if (_nameController.text.trim().isEmpty) {
@@ -105,6 +103,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       );
       return;
     }
+
     // Validate personality code
     if (_personalityController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -115,6 +114,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       );
       return;
     }
+
     setState(() {
       _participantName = _nameController.text.trim();
       _personalityCode = _personalityController.text.trim().toUpperCase();
@@ -123,7 +123,6 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       _currentQuestionInPhase = 1;
       _collectedData.clear();
       _error = null;
-      // Reset lazy sync state for new collection
       _hasServerDesync = false;
       _lastAnswerBeforeBack = null;
     });
@@ -131,42 +130,38 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
     await _startNewPhase();
   }
 
-  // MBTI element_id rotation: 1=energy, 2=mind, 3=nature, 4=tactics
-  int _getCurrentElementId() {
-    return ((_currentPhase - 1) % TOTAL_ELEMENTS) + 1;
-  }
-
   Future<void> _startNewPhase() async {
     setState(() {
       _isLoading = true;
+      _loadingMessage = 'フェーズ $_currentPhase を開始中...';
       _currentQuestionInPhase = 1;
       _currentSessionData.clear();
       _optionsHistory.clear();
       _questionHistory.clear();
-      // Reset lazy sync state for new phase
       _hasServerDesync = false;
       _lastAnswerBeforeBack = null;
     });
 
+    _navigationController.resetForNewPhase();
+
     try {
-      // Calculate element_id for this phase
-      final elementId = _getCurrentElementId();
-      // Start new conversation for this phase with element_id
-      final response = await _apiService.startNewConversation(elementId: elementId);
+      final elementId = _dataController.getCurrentElementId(_currentPhase);
+      final response = await _dataController.startNewConversation(elementId: elementId);
 
       setState(() {
         _currentQuestion = response['data']['question'];
         _sessionId = response['data']['session_id'];
-        _isLoading = false;
-      });
-      // 初回質問を履歴に追加
-      if (_currentQuestion != null) _questionHistory.add(_currentQuestion!);
-      await _getOptions();
-      // 初回選択肢を履歴に追加
-      setState(() {
-        _optionsHistory.add(_currentOptions);
+        _loadingMessage = '選択肢を生成中...';
       });
 
+      if (_currentQuestion != null) _questionHistory.add(_currentQuestion!);
+      await _getOptions();
+      setState(() {
+        _optionsHistory.add(_currentOptions);
+        _isLoading = false;
+      });
+
+      _saveCurrentNavigationState();
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -177,11 +172,10 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
 
   Future<void> _getOptions() async {
     try {
-      final response = await _apiService.getOptions();
+      final response = await _dataController.getOptions();
       final options = List<String>.from(response['data']['options'] ?? []);
       setState(() {
         _currentOptions = options;
-        // _optionsHistoryへのpushはsubmitAnswerで行う
       });
     } catch (e) {
       setState(() {
@@ -193,31 +187,57 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   Future<void> _submitAnswer(String answer) async {
     setState(() {
       _isLoading = true;
+      _loadingMessage = '回答を送信中...';
       _error = null;
     });
 
     try {
-      // Check if we need to sync server state due to answer divergence after going back
-      bool needsServerSync = _hasServerDesync && _lastAnswerBeforeBack != null && _lastAnswerBeforeBack != answer;
+      // Debug current state
+      print('DEBUG: submitAnswer called');
+      print('DEBUG: _hasServerDesync = $_hasServerDesync');
+      print('DEBUG: _lastAnswerBeforeBack = $_lastAnswerBeforeBack');
+      print('DEBUG: answer = $answer');
+      print('DEBUG: navigationIndex = ${_navigationController.currentNavigationIndex}');
+      print('DEBUG: navigationHistoryLength = ${_navigationController.navigationHistory.length}');
 
+      // Check if we need to sync server state after going back
+      // We need to sync if we're in a desync state, regardless of the answer choice
+      bool needsServerSync = _hasServerDesync &&
+                           _navigationController.currentNavigationIndex >= 0 &&
+                           _navigationController.currentNavigationIndex < _navigationController.navigationHistory.length - 1;
+
+      print('DEBUG: needsServerSync = $needsServerSync');
+
+      // Calculate the number of steps to undo based on navigation position
+      int stepsToUndo = 0;
       if (needsServerSync) {
-        // Undo the last answer on server before proceeding with new answer
+        stepsToUndo = _navigationController.navigationHistory.length - 1 - _navigationController.currentNavigationIndex;
+      }
+      print('DEBUG: stepsToUndo = $stepsToUndo');
+
+      if (needsServerSync && stepsToUndo > 0) {
+        // Undo multiple steps on server before proceeding with new answer
         try {
-          await _apiService.undoLastAnswer();
+          print('DEBUG: Calling undoLastAnswer API with $stepsToUndo steps...');
+          await _dataController.undoLastAnswer(steps: stepsToUndo);
+          print('DEBUG: undoLastAnswer API call successful for $stepsToUndo steps');
           // Reset sync flags
           _hasServerDesync = false;
           _lastAnswerBeforeBack = null;
         } catch (e) {
           // If undo fails, log but continue - might be recoverable
-          print('Warning: Failed to undo last answer on server: $e');
+          print('Warning: Failed to undo last $stepsToUndo step(s) on server: $e');
         }
+      } else {
+        print('DEBUG: Skipping server sync - needsServerSync = $needsServerSync, stepsToUndo = $stepsToUndo');
       }
 
+      print(_currentQuestion);
       final newEntry = {
         'participant_name': _participantName,
         'phase': _currentPhase,
-        'element_type': _getCurrentElementType(),
-        'cycle_number': _getCurrentCycle(),
+        'element_type': _dataController.getCurrentElementType(_currentPhase),
+        'cycle_number': _dataController.getCurrentCycle(_currentPhase),
         'question_number_in_phase': _currentQuestionInPhase,
         'question': _currentQuestion,
         'answer': answer,
@@ -227,25 +247,46 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       _currentSessionData.add(newEntry);
       _optionsHistory.add(_currentOptions); // push options history
 
-      // Reset sync state since we're now in sync
-      if (!needsServerSync && _hasServerDesync && _lastAnswerBeforeBack == answer) {
-        // Same answer as before, no server sync needed
+      // If we're in a desync state and submitting a different answer, clear future navigation history
+      if (_hasServerDesync && _lastAnswerBeforeBack != null && _lastAnswerBeforeBack != answer) {
+        print('DEBUG: Clearing future navigation history due to answer change');
+        // This will be handled by the navigation controller when saving the new state
+      }
+
+      // Reset sync state since we're now in sync with a new answer
+      if (needsServerSync || (_hasServerDesync && _lastAnswerBeforeBack != answer)) {
         _hasServerDesync = false;
         _lastAnswerBeforeBack = null;
       }
 
-      if (_currentQuestionInPhase < QUESTIONS_PER_ELEMENT) {
-        final response = await _apiService.submitAnswer(answer);
+      // Save current navigation state before proceeding
+      _saveCurrentNavigationState();
+
+      if (_currentQuestionInPhase < DataCollectionConstants.questionsPerElement) {
+        setState(() {
+          _loadingMessage = '次の質問を生成中...';
+        });
+        final response = await _dataController.submitAnswer(answer);
 
         setState(() {
           _currentQuestion = response['data']['question'];
           _currentQuestionInPhase++;
-          _isLoading = false;
+          _loadingMessage = '選択肢を生成中...';
         });
         // 新しい質問を履歴に追加
         if (_currentQuestion != null) _questionHistory.add(_currentQuestion!);
         await _getOptions();
+
+        setState(() {
+          _isLoading = false;
+        });
+
+        // Save navigation state after getting new question
+        _saveCurrentNavigationState();
       } else {
+        setState(() {
+          _loadingMessage = 'フェーズ $_currentPhase を完了中...';
+        });
         await _completePhase();
       }
     } catch (e) {
@@ -257,18 +298,21 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   }
 
   Future<void> _completePhase() async {
-
-    await _uploadPhaseCsvToGcs(_currentPhase);
+    await _dataController.uploadPhaseCsvToGcs(
+      phaseNumber: _currentPhase,
+      currentSessionData: _currentSessionData,
+      participantName: _participantName,
+      personalityCode: _personalityCode,
+    );
 
     _collectedData.addAll(_currentSessionData);
 
     // Save completed phase session data and options history for back navigation
     _phaseSessionHistory.add(List<Map<String, dynamic>>.from(_currentSessionData));
     _phaseOptionsHistory.add(List<List<String>>.from(_optionsHistory));
-    // Save question history for this phase
     _phaseQuestionHistory.add(List<String>.from(_questionHistory));
 
-    if (_currentPhase < TOTAL_PHASES) {
+    if (_currentPhase < DataCollectionConstants.totalPhases) {
       // Move to next phase
       setState(() {
         _currentPhase++;
@@ -297,155 +341,62 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       _isCollectionInProgress = false;
       _isLoading = false;
     });
-    // 全フェーズ終了時に自動でGCSへアップロード
-    await _uploadCsvToGcs();
-    await _clearProgressPrefs();
 
+    // Upload all data to GCS
+    await _dataController.uploadCsvToGcs(
+      collectedData: _collectedData,
+      participantName: _participantName,
+      personalityCode: _personalityCode,
+    );
+
+    // Show completion message
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('データ収集が完了しました！CSVファイルをダウンロードできます。'),
+        content: Text('データ収集完了！ありがとうございました'),
         backgroundColor: Colors.green,
-        duration: Duration(seconds: 3),
+        duration: Duration(seconds: 4),
       ),
     );
+
+    // Clear the session data and prefs
+    await _dataController.clearPrefs();
+    await _goToStart();
   }
 
   void _downloadCSV() {
-    if (_collectedData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ダウンロードするデータがありません'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    if (!kIsWeb) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('WebブラウザでのみCSVダウンロードが可能です'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    // Prepare CSV data
-    List<List<dynamic>> csvData = [
-      // Header including personality code
-      ['Participant Name', 'Personality Code', 'Phase', 'Element Type', 'Cycle Number', 'Question Number', 'Question', 'Answer', 'Timestamp', 'Session ID']
-    ];
-
-    // Add data rows
-    for (var item in _collectedData) {
-      final phase = item['phase'] as int;
-      final idx = (phase - 1) % TOTAL_ELEMENTS;
-      final codeLetter = (_personalityCode != null && _personalityCode!.length > idx)
-          ? _personalityCode![idx]
-          : '';
-      csvData.add([
-        item['participant_name'],
-        codeLetter,
-        item['phase'],
-        item['element_type'],
-        item['cycle_number'],
-        item['question_number_in_phase'],
-        item['question'],
-        item['answer'],
-        item['timestamp'],
-        item['session_id'],
-      ]);
-    }
-
-    // Convert to CSV string
-    String csvString = const ListToCsvConverter().convert(csvData);
-
-    // Create and download file
-    final bytes = utf8.encode(csvString);
-    final blob = html.Blob([bytes], 'text/csv;charset=utf-8');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    final anchor = html.document.createElement('a') as html.AnchorElement
-      ..href = url
-      ..style.display = 'none'
-      ..download = 'mbti_data_collection_${_participantName ?? 'anonymous'}_all_${DateTime.now().toIso8601String().replaceAll(RegExp(r'[:\-T\.]'), '').substring(0, 15)}.csv';
-    html.document.body?.children.add(anchor);
-    anchor.click();
-    html.document.body?.children.remove(anchor);
-    html.Url.revokeObjectUrl(url);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('CSVファイルをダウンロードしました'),
-        backgroundColor: Colors.green,
-      ),
+    _dataController.downloadCSV(
+      collectedData: _collectedData,
+      participantName: _participantName,
+      personalityCode: _personalityCode,
     );
   }
 
-  Future<void> _signOut() async {
-    await _clearProgressPrefs();
-    // For data collection page, just navigate to home instead of signing out
-    if (mounted) {
-      Navigator.pushReplacementNamed(context, '/');
+  void _signOut() async {
+    await _dataController.signOut();
+    if (kIsWeb) {
+      // For web, just go to home
+      Navigator.of(context).pushReplacementNamed('/');
+    } else {
+      // For other platforms, exit app
+      Navigator.of(context).pushReplacementNamed('/');
     }
-  }
-
-  String _getCurrentElementType() {
-    final elementTypes = ['エネルギー (I/E)', '情報収集 (N/S)', '意思決定 (T/F)', '外界への態度 (J/P)'];
-    final elementIndex = ((_currentPhase - 1) % TOTAL_ELEMENTS);
-    return elementTypes[elementIndex];
-  }
-
-  int _getCurrentCycle() {
-    return ((_currentPhase - 1) ~/ TOTAL_ELEMENTS) + 1;
   }
 
   Future<void> _saveProgressToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saveData = jsonEncode({
-      'participantName': _participantName,
-      'personalityCode': _personalityCode,
-      'currentPhase': _currentPhase,
-      'collectedData': _collectedData,
-    });
-    await prefs.setString('mbti_data_collection_progress', saveData);
+    await _dataController.saveProgressToPrefs(
+      participantName: _participantName,
+      personalityCode: _personalityCode,
+      currentPhase: _currentPhase,
+      collectedData: _collectedData,
+    );
   }
 
-  Future<void> _restoreProgressFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saveData = prefs.getString('mbti_data_collection_progress');
-    if (saveData != null) {
-      try {
-        final decoded = jsonDecode(saveData);
-        setState(() {
-          _participantName = decoded['participantName'];
-          _personalityCode = decoded['personalityCode'];
-          if (_personalityCode != null) {
-            _personalityController.text = _personalityCode!;
-          }
-          _currentPhase = decoded['currentPhase'] ?? 1;
-          _collectedData = List<Map<String, dynamic>>.from(decoded['collectedData'] ?? []);
-          _isCollectionInProgress = true;
-        });
-        // 途中から再開
-        await _startNewPhase();
-      } catch (e) {
-        // 復元失敗時は何もしない
-      }
-    }
-  }
-
-  Future<void> _clearProgressPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('mbti_data_collection_progress');
-  }
-
-  // リセット確認ダイアログを表示
   Future<void> _confirmReset() async {
-    final shouldReset = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('リセットしますか？'),
-        content: const Text('現在の進行状況は失われます。よろしいですか？'),
+        title: const Text('データをリセットしますか？'),
+        content: const Text('これまでのデータがすべて削除されます。この操作は取り消せません。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -453,31 +404,185 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('はい'),
+            child: const Text('リセット'),
           ),
         ],
       ),
     );
-    if (shouldReset == true) {
-      _goToStart();
+
+    if (confirmed == true) {
+      await _goToStart();
     }
   }
 
-  void _goToStart() {
-    // Reset state to initial input screen
-    _clearProgressPrefs();
+  Future<void> _goToStart() async {
+    await _dataController.clearPrefs();
     setState(() {
       _isCollectionInProgress = false;
+      _currentPhase = 1;
+      _currentQuestionInPhase = 1;
+      _currentQuestion = null;
+      _currentOptions.clear();
+      _sessionId = null;
+      _isLoading = false;
+      _error = null;
       _participantName = null;
       _personalityCode = null;
       _collectedData.clear();
       _currentSessionData.clear();
-      _currentPhase = 1;
-      _currentQuestionInPhase = 1;
-      _nameController.clear();
-      _personalityController.clear();
-      _error = null;
+      _optionsHistory.clear();
+      _questionHistory.clear();
+      _phaseSessionHistory.clear();
+      _phaseOptionsHistory.clear();
+      _phaseQuestionHistory.clear();
+      _hasServerDesync = false;
+      _lastAnswerBeforeBack = null;
     });
+    _nameController.clear();
+    _personalityController.clear();
+  }
+
+  void _saveCurrentNavigationState() {
+    if (_currentQuestion != null) {
+      _navigationController.saveCurrentNavigationState(
+        currentPhase: _currentPhase,
+        currentQuestionInPhase: _currentQuestionInPhase,
+        currentQuestion: _currentQuestion!,
+        currentOptions: _currentOptions,
+        sessionId: _sessionId,
+        currentSessionData: _currentSessionData,
+        questionHistory: _questionHistory,
+        optionsHistory: _optionsHistory,
+      );
+    }
+  }
+
+  void _restoreNavigationState(NavigationState state) {
+    setState(() {
+      _currentPhase = state.phase;
+      _currentQuestionInPhase = state.questionInPhase;
+      _currentQuestion = state.question;
+      _currentOptions = state.options;
+      _sessionId = state.sessionId;
+      _currentSessionData = state.sessionData;
+      _questionHistory = state.questionHistory;
+      _optionsHistory = state.optionsHistory;
+    });
+  }
+
+  Future<void> _goBack() async {
+    setState(() {
+      _isLoading = true;
+      _loadingMessage = '前の質問に戻っています...';
+    });
+
+    try {
+      final canGoBack = _navigationController.canGoBack(
+        currentQuestionInPhase: _currentQuestionInPhase,
+        currentPhase: _currentPhase,
+      );
+
+      if (!canGoBack) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Set the last answer for potential server sync before going back
+      if (_currentSessionData.isNotEmpty && !_hasServerDesync) {
+        final lastEntry = _currentSessionData.last;
+        _lastAnswerBeforeBack = lastEntry['answer'] as String?;
+        print('DEBUG: Set _lastAnswerBeforeBack = $_lastAnswerBeforeBack');
+      }
+
+      // Try to use navigation controller first
+      final previousState = _navigationController.goBack();
+      if (previousState != null) {
+        // Use navigation controller state
+        print('DEBUG: Going back using navigation controller to question ${previousState.questionInPhase} in phase ${previousState.phase}');
+        _restoreNavigationState(previousState);
+        setState(() {
+          _hasServerDesync = true;
+          _isLoading = false;
+        });
+        return;
+      } else {
+        print('DEBUG: Navigation controller goBack returned null, using fallback logic');
+      }
+
+      // Fallback to manual navigation logic for phase boundaries
+      // Check if going back across phases
+      bool crossingPhases = _currentQuestionInPhase == 1 && _currentPhase > 1;
+
+      if (crossingPhases) {
+        // Going back to previous phase
+        int previousPhase = _currentPhase - 1;
+        if (_phaseSessionHistory.length >= previousPhase) {
+          // Restore from phase history
+          setState(() {
+            _currentPhase = previousPhase;
+            _currentQuestionInPhase = DataCollectionConstants.questionsPerElement;
+            _currentSessionData = List<Map<String, dynamic>>.from(_phaseSessionHistory[previousPhase - 1]);
+            _optionsHistory = List<List<String>>.from(_phaseOptionsHistory[previousPhase - 1]);
+            _questionHistory = List<String>.from(_phaseQuestionHistory[previousPhase - 1]);
+            _currentQuestion = _questionHistory.isNotEmpty ? _questionHistory.last : null;
+            _currentOptions = _optionsHistory.isNotEmpty ? _optionsHistory.last : [];
+            _hasServerDesync = true;
+          });
+          // Force navigation controller to update its index
+          _navigationController.forceNavigateBack();
+        }
+      } else {
+        // Going back within the same phase
+        if (_currentQuestionInPhase > 1) {
+          setState(() {
+            _currentQuestionInPhase--;
+            _currentQuestion = _questionHistory.isNotEmpty ? _questionHistory[_currentQuestionInPhase - 1] : null;
+            _currentOptions = _optionsHistory.isNotEmpty ? _optionsHistory[_currentQuestionInPhase - 1] : [];
+            _hasServerDesync = true;
+          });
+          // Force navigation controller to update its index
+          _navigationController.forceNavigateBack();
+        }
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _goForward() {
+    print('DEBUG: Attempting to go forward - canGoForward: ${_canGoForward()}');
+    final state = _navigationController.goForward();
+    if (state != null) {
+      print('DEBUG: Going forward to question ${state.questionInPhase} in phase ${state.phase}');
+      _restoreNavigationState(state);
+      setState(() {
+        _hasServerDesync = true; // Mark as desync since we're going to a previous state
+      });
+    } else {
+      print('DEBUG: No forward state available');
+    }
+  }
+
+  bool _canGoBack() {
+    return _navigationController.canGoBack(
+      currentQuestionInPhase: _currentQuestionInPhase,
+      currentPhase: _currentPhase,
+    );
+  }
+
+  bool _canGoForward() {
+    final canForward = _navigationController.canGoForward();
+    print('DEBUG: canGoForward = $canForward, navigationIndex = ${_navigationController.currentNavigationIndex}, historyLength = ${_navigationController.navigationHistory.length}');
+    return canForward;
   }
 
   @override
@@ -487,475 +592,60 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildAppBar(),
+            DataCollectionAppBar(
+              isCollectionInProgress: _isCollectionInProgress,
+              onReset: _confirmReset,
+              onSignOut: _signOut,
+            ),
             Expanded(
-              child: _buildMainContent(),
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    ProgressHeader(
+                      currentPhase: _currentPhase,
+                      currentQuestionInPhase: _currentQuestionInPhase,
+                      isCollectionInProgress: _isCollectionInProgress,
+                      collectedDataLength: _collectedData.length,
+                      getCurrentElementType: (phase) => _dataController.getCurrentElementType(phase),
+                      getCurrentCycle: (phase) => _dataController.getCurrentCycle(phase),
+                    ),
+                    Expanded(
+                      child: _isCollectionInProgress
+                          ? _buildCollectionView()
+                          : StartView(
+                              nameController: _nameController,
+                              personalityController: _personalityController,
+                              personalityCode: _personalityCode,
+                              hasCollectedData: _collectedData.isNotEmpty,
+                              isLoading: _isLoading,
+                              onPersonalityCodeChanged: (value) {
+                                setState(() {
+                                  _personalityCode = value;
+                                  _personalityController.text = value ?? '';
+                                });
+                              },
+                              onStartDataCollection: _startDataCollection,
+                              onDownloadCSV: _downloadCSV,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAppBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          if (!_isCollectionInProgress)
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.black54),
-              onPressed: () => Navigator.pushReplacementNamed(context, '/'),
-            ),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.purple,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.analytics,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: GestureDetector(
-              onTap: _isCollectionInProgress ? _confirmReset : null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'データ収集',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  Text(
-                    'MBTI質問応答データの収集',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black54, size: 24),
-            onPressed: _signOut,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMainContent() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          _buildProgressHeader(),
-          Expanded(
-            child: _isCollectionInProgress
-                ? _buildCollectionView()
-                : _buildStartView(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProgressHeader() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.purple[50],
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'フェーズ $_currentPhase / $TOTAL_PHASES',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    if (_isCollectionInProgress) ...[
-                      Text(
-                        '${_getCurrentElementType()} (${_getCurrentCycle()}回目)',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.purple,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        '質問 $_currentQuestionInPhase / $QUESTIONS_PER_ELEMENT',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.purple,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${_collectedData.length} / ${TOTAL_PHASES * QUESTIONS_PER_ELEMENT}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: _collectedData.length / (TOTAL_PHASES * QUESTIONS_PER_ELEMENT),
-            backgroundColor: Colors.purple[100],
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.purple),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStartView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          const SizedBox(height: 20), // Add some top spacing
-          Icon(
-            Icons.play_circle_outline,
-            size: 64, // Reduced size
-            color: Colors.purple[300],
-          ),
-          const SizedBox(height: 20), // Reduced spacing
-          const Text(
-            'データ収集を開始',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 12), // Reduced spacing
-
-          // Data usage consent notice
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14), // Reduced padding
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue[200]!),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.info, color: Colors.blue[600], size: 18), // Reduced size
-                    const SizedBox(width: 6), // Reduced spacing
-                    const Text(
-                      'データ利用について',
-                      style: TextStyle(
-                        fontSize: 15, // Reduced font size
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10), // Reduced spacing
-                const Text(
-                  '収集されたデータは独自のAIの学習に使用され、AIの学習以外には使用いたしません。\n\nもしデータの削除を求める場合は、メールアドレス「 info@anful.ai , ogawa.hajime.hyr@gmail.com 」の青木・小川まで入力した名前と削除する旨をメールでお伝えください。',
-                  style: TextStyle(
-                    fontSize: 13, // Reduced font size
-                    height: 1.4, // Reduced line height
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 10), // Reduced spacing
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10), // Reduced padding
-                  decoration: BoxDecoration(
-                    color: Colors.orange[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange[200]!),
-                  ),
-                  child: const Text(
-                    '同意する場合のみ名前を入力して開始してください',
-                    style: TextStyle(
-                      fontSize: 13, // Reduced font size
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20), // Reduced spacing
-
-          Text(
-            '• $TOTAL_PHASES フェーズ実行\n• 各フェーズ $QUESTIONS_PER_ELEMENT 問\n• 合計 ${TOTAL_PHASES * QUESTIONS_PER_ELEMENT} 問のデータを収集\n• 結果をCSVでダウンロード可能',
-            style: const TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              color: Colors.black54,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            '※ヘッダーの「データ収集」を押すと進行状況がリセットされます',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.redAccent,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          // Prompt users to take personality test with clickable link
-          RichText(
-            textAlign: TextAlign.center,
-            text: TextSpan(
-              style: const TextStyle(fontSize: 14, color: Colors.black87),
-              children: [
-                const TextSpan(text: '性格診断がまだの方は '),
-                TextSpan(
-                  text: 'こちら',
-                  style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
-                  recognizer: TapGestureRecognizer()
-                    ..onTap = () {
-                      html.window.open(
-                        'https://www.16personalities.com/ja/性格診断テスト',
-                        '_blank',
-                      );
-                    },
-                ),
-                const TextSpan(text: ' から性格診断をしてください'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Participant name input
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '参加者名',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  child: TextField(
-                    controller: _nameController,
-                    style: const TextStyle(fontSize: 16),
-                    decoration: InputDecoration(
-                      hintText: '参加者の名前を入力してください',
-                      hintStyle: TextStyle(
-                        color: Colors.grey[400],
-                        fontSize: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      prefixIcon: Icon(
-                        Icons.person,
-                        color: Colors.grey[400],
-                      ),
-                    ),
-                    textInputAction: TextInputAction.done,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Personality code input
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '16性格コード',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[300]!),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: DropdownButtonFormField<String>(
-                    value: _personalityCode,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    hint: const Text('例: INFP'),
-                    items: _personalityTypes.map((type) => DropdownMenuItem<String>(
-                      value: type,
-                      child: Text(
-                        '$type (${_elementNames[type] ?? ''})',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                    )).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _personalityCode = value;
-                        _personalityController.text = value ?? '';
-                      });
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20), // Reduced spacing
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _startDataCollection,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple,
-                padding: const EdgeInsets.symmetric(vertical: 14), // Reduced padding
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 18, // Reduced size
-                      width: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : const Text(
-                      'データ収集開始',
-                      style: TextStyle(
-                        fontSize: 16, // Reduced font size
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12), // Reduced spacing
-          if (_collectedData.isNotEmpty)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _downloadCSV,
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.purple),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'CSVダウンロード',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          const SizedBox(height: 20), // Add bottom spacing for scroll
-        ],
       ),
     );
   }
@@ -963,449 +653,91 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   Widget _buildCollectionView() {
     return Column(
       children: [
-        // Back button and question area
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back),
-              onPressed: (!_isLoading && (_currentQuestionInPhase > 1 || _currentPhase > 1)) ? _goBack : null,
-            ),
-            Expanded(
-              child: _currentQuestion != null
-                ? Text('Q$_currentQuestionInPhase: $_currentQuestion')
-                : const SizedBox.shrink(),
-            ),
-          ],
+        NavigationButtons(
+          canGoBack: _canGoBack(),
+          canGoForward: _canGoForward(),
+          isLoading: _isLoading,
+          currentQuestion: _currentQuestion,
+          currentQuestionInPhase: _currentQuestionInPhase,
+          onGoBack: _goBack,
+          onGoForward: _goForward,
         ),
-
-        // Current question area
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_currentQuestion != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey[200]!),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Colors.purple,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.psychology,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Q$_currentQuestionInPhase',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.purple,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          _currentQuestion!,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            height: 1.4,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                if (_error != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red[200]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error, color: Colors.red[600]),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'エラー: $_error',
-                            style: TextStyle(
-                              color: Colors.red[800],
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                if (_isLoading) ...[
-                  const Center(
-                    child: Column(
-                      children: [
-                        CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          '処理中...',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-
-        // Answer options
-        if (_currentOptions.isNotEmpty && !_isLoading) ...[
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border(
-                top: BorderSide(color: Colors.grey[200]!),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '選択肢から選ぶ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ..._currentOptions.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final option = entry.value;
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: InkWell(
-                      onTap: () => _submitAnswer(option),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.grey[300]!,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: Colors.purple,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  String.fromCharCode(65 + index), // A, B, C...
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                option,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  height: 1.4,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.arrow_forward_ios,
-                              size: 14,
-                              color: Colors.grey,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-              }),
-              ],
-            ),
-          ),
-        ],
-
-        // Custom answer input
-        if (_currentQuestion != null && !_isLoading) ...[
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                top: BorderSide(color: Colors.grey[200]!),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '自由に回答する',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
+          child: _isLoading 
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Expanded(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: TextField(
-                          controller: _textController,
-                          style: const TextStyle(fontSize: 16),
-                          decoration: InputDecoration(
-                            hintText: 'あなたの考えを教えてください...',
-                            hintStyle: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 16,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                          ),
-                          maxLines: null,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (text) {
-                            if (text.trim().isNotEmpty) {
-                              _submitAnswer(text.trim());
-                              _textController.clear();
-                            }
-                          },
-                        ),
-                      ),
+                    const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.purple),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      decoration: BoxDecoration(
+                    const SizedBox(height: 16),
+                    Text(
+                      _loadingMessage,
+                      style: const TextStyle(
+                        fontSize: 16,
                         color: Colors.purple,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: IconButton(
-                        onPressed: () {
-                          final text = _textController.text.trim();
-                          if (text.isNotEmpty) {
-                            _submitAnswer(text);
-                            _textController.clear();
-                          }
-                        },
-                        icon: const Icon(Icons.send, color: Colors.white),
-                        iconSize: 18,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_currentQuestion != null)
+                      QuestionCard(
+                        question: _currentQuestion!,
+                        currentQuestionInPhase: _currentQuestionInPhase,
+                      ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 20),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              color: Colors.red[700],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: TextStyle(
+                                  color: Colors.red[700],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+        ),
+        if (_currentOptions.isNotEmpty && !_isLoading)
+          AnswerOptions(
+            options: _currentOptions,
+            onAnswerSelected: _submitAnswer,
           ),
-        ],
+        if (_currentQuestion != null && !_isLoading)
+          CustomAnswerInput(
+            textController: _textController,
+            onAnswerSubmitted: _submitAnswer,
+          ),
       ],
     );
-  }
-
-  // --- GCSアップロード処理 ---
-  Future<void> _uploadCsvToGcs() async {
-    if (_collectedData.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('アップロードするデータがありません'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-    setState(() { _isLoading = true; });
-    try {
-      // Prepare CSV data
-      List<List<dynamic>> csvData = [
-        ['Participant Name', 'Phase', 'Element Type', 'Cycle Number', 'Question Number', 'Question', 'Answer', 'Timestamp', 'Session ID']
-      ];
-      for (var item in _collectedData) {
-        csvData.add([
-          item['participant_name'],
-          item['phase'],
-          item['element_type'],
-          item['cycle_number'],
-          item['question_number_in_phase'],
-          item['question'],
-          item['answer'],
-          item['timestamp'],
-          item['session_id'],
-        ]);
-      }
-      String csvString = const ListToCsvConverter().convert(csvData);
-      final success = await _apiService.uploadCsvToGcs(
-        participantName: _participantName ?? 'anonymous',
-        personalityCode: _personalityCode ?? '',
-        csvContent: csvString,
-      );
-      setState(() { _isLoading = false; });
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('GCSへのアップロードに成功しました'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('GCSへのアップロードに失敗しました'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() { _isLoading = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('アップロードエラー: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // フェーズごとのGCSアップロード処理
-  Future<void> _uploadPhaseCsvToGcs(int phaseNumber) async {
-    final phaseData = List<Map<String, dynamic>>.from(_currentSessionData);
-    if (phaseData.isEmpty) return;
-    List<List<dynamic>> csvData = [
-      ['Participant Name', 'Phase', 'Element Type', 'Cycle Number', 'Question Number', 'Question', 'Answer', 'Timestamp', 'Session ID']
-    ];
-    int cycle_number = 0;
-    for (var item in phaseData) {
-      csvData.add([
-        item['cycle_number'],
-        item['question_number_in_phase'],
-        item['question'],
-        item['answer'],
-        item['timestamp'],
-        item['session_id'],
-      ]);
-    }
-    String csvString = const ListToCsvConverter().convert(csvData);
-    await _apiService.uploadCsvToGcs(
-      participantName: _participantName ?? 'anonymous',
-      personalityCode: _personalityCode ?? '',
-      csvContent: csvString,
-      elementId: ((phaseNumber - 1) % TOTAL_ELEMENTS) + 1, // 1-4の範囲に変換
-      cycleNumber: _getCurrentCycle(),
-    );
-  }
-
-  // Navigate back one question - only rolls back local state, server sync on answer divergence
-  void _goBack() {
-    setState(() {
-      if (_currentQuestionInPhase > 1) {
-        _currentQuestionInPhase--;
-
-        // Store the answer that will be rolled back for comparison
-        if (_currentSessionData.isNotEmpty) {
-          _lastAnswerBeforeBack = _currentSessionData.last['answer'] as String;
-        }
-
-        // Roll back local state only
-        _currentSessionData.removeLast();
-        _questionHistory.removeLast();
-        _optionsHistory.removeLast();
-
-        // Restore display
-        _currentQuestion = _questionHistory.last;
-        _currentOptions = _optionsHistory.last;
-        _sessionId = _currentSessionData.isNotEmpty
-          ? _currentSessionData.last['session_id'] as String?
-          : _sessionId;
-
-        // Mark as potentially out of sync - will sync on next different answer
-        _hasServerDesync = true;
-
-      } else if (_currentPhase > 1) {
-        // Navigate to previous phase
-        _currentPhase--;
-
-        // Store the last answer from current phase for comparison
-        if (_currentSessionData.isNotEmpty) {
-          _lastAnswerBeforeBack = _currentSessionData.last['answer'] as String;
-        }
-
-        _currentSessionData = _phaseSessionHistory.removeLast();
-        _questionHistory = _phaseQuestionHistory.removeLast();
-        _optionsHistory = _phaseOptionsHistory.removeLast();
-        _currentQuestionInPhase = QUESTIONS_PER_ELEMENT;
-        _currentQuestion = _questionHistory.last;
-        _currentOptions = _optionsHistory.last;
-        _sessionId = _currentSessionData.last['session_id'] as String?;
-
-        // Mark as potentially out of sync
-        _hasServerDesync = true;
-      }
-
-      _error = null;
-      _isLoading = false;
-    });
   }
 }

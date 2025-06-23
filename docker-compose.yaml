@@ -1,0 +1,74 @@
+services:
+  # Flutter Web Application
+  flutter:
+    build:
+      context: ./flutter_ui
+      dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: sync
+          path: ./flutter_ui/lib
+          target: /app/lib
+        - action: sync
+          path: ./flutter_ui/web
+          target: /app/web
+        - action: sync
+          path: ./flutter_ui/assets
+          target: /app/assets
+        - action: rebuild
+          path: ./flutter_ui/pubspec.yaml
+    ports:
+      - '3000:3000'
+    environment:
+      - FLUTTER_WEB_USE_SKIA=true
+    restart: unless-stopped
+
+  # API Backend
+  api:
+    build:
+      context: ./diagnosis-ai-api
+      dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: sync
+          path: ./diagnosis-ai-api/src
+          target: /app/src
+        - action: sync
+          path: ./diagnosis-ai-api/config
+          target: /app/config
+        - action: rebuild
+          path: ./diagnosis-ai-api/pyproject.toml
+    ports:
+      - '8000:8000'
+    environment:
+      - PERSISTENCE_TYPE=sql
+      - DB_CONNECTION_STRING=${DB_CONNECTION_STRING}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+      - ENVIRONMENT=${ENVIRONMENT}
+      - GCS_BUCKET_NAME=${GCS_BUCKET_NAME}
+      - DB_APP_USER=${DB_APP_USER}
+      - DB_APP_PASS=${DB_APP_PASS}
+      - DB_ADMIN_USER=${DB_ADMIN_USER}
+      - DB_ADMIN_PASS=${DB_ADMIN_PASS}
+    depends_on:
+      - db
+    volumes:
+      - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=diagnosis_ai
+    ports:
+      - '5432:5432'
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

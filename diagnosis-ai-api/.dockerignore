@@ -1,0 +1,41 @@
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Development files
+.git/
+.gitignore
+README.md
+docs/
+tests/
+test_*.py
+terraform/
+deploy/
+notebook/
+
+# Firebase credentials (mounted as volume)
+firebase-adminsdk.json

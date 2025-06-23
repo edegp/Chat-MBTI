@@ -150,7 +150,7 @@ class LangGraphDriver:
 
         # Return updated state
         return {
-            "messages": [Message(role="assistant", content=question)],
+            "messages": [AIMessageWithID(content=question)],
             "pending_question": question,
             "session_id": state["session_id"],
             "next_display_order": state["next_display_order"] + 1

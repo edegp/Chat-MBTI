@@ -291,25 +291,30 @@ class MBTIController:
             error_response["history"] = []  # 追加フィールド
             return error_response
 
-    async def undo_last_answer(self, user_id: str) -> Dict[str, Any]:
-        """Undo the last answer for data collection"""
-        logger.info(f"Undoing last answer for user: {user_id}")
+    async def undo_last_answer(self, user_id: str, steps: int = 1) -> Dict[str, Any]:
+        """Undo the last answer(s) for data collection"""
+        logger.info(f"Undoing {steps} step(s) for user: {user_id}")
 
         if not user_id:
             error = InvalidInputError("User ID is required")
             error.log_error(logger)
             return create_error_response(error)
 
+        if steps < 1:
+            error = InvalidInputError("Steps must be at least 1")
+            error.log_error(logger)
+            return create_error_response(error)
+
         try:
-            result = self.mbti_service.undo_last_answer(user_id)
-            logger.info(f"Last answer undone successfully for user: {user_id}")
+            result = self.mbti_service.undo_last_answer(user_id, steps)
+            logger.info(f"{steps} step(s) undone successfully for user: {user_id}")
             return result
         except MBTIApplicationError as e:
             e.log_error(logger)
             return create_error_response(e)
         except Exception as e:
             logger.error(
-                f"Unexpected error while undoing last answer for user {user_id}: {e}"
+                f"Unexpected error while undoing {steps} step(s) for user {user_id}: {e}"
             )
             error = MBTIApplicationError("Internal server error")
             return create_error_response(error)

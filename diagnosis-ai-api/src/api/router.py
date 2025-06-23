@@ -545,16 +545,17 @@ async def complete_data_collection_assessment(
 
 @router.delete("/data-collection/conversation/undo")
 async def undo_last_answer(
+    steps: Optional[int] = Query(1, description="Number of steps to undo (default: 1)"),
     controller: MBTIController = Depends(get_mbti_controller),
 ):
-    """Undo the last answer in data collection conversation"""
+    """Undo the last answer(s) in data collection conversation"""
     try:
         user_id = "data_collection_user"
         logger.info(
-            "Undoing last answer for data collection", extra={"user_id": user_id}
+            f"Undoing {steps} step(s) for data collection", extra={"user_id": user_id}
         )
 
-        result = await controller.undo_last_answer(user_id)
+        result = await controller.undo_last_answer(user_id, steps)
 
         if result["status"] == "error":
             raise ValidationError(result["message"])

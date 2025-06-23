@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build:
@@ -10,8 +8,11 @@ services:
         - action: sync
           path: ./src
           target: /app/src
+        - action: sync
+          path: ./config
+          target: /app/config
         - action: rebuild
-          path: ./app/pyproject.toml
+          path: ./pyproject.toml
     ports:
       - '8000:8000'
     environment:
@@ -22,7 +23,6 @@ services:
     depends_on:
       - db
     volumes:
-      - ./src:/app/src
       - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
     restart: unless-stopped
 

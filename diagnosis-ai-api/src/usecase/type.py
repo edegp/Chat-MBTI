@@ -1,18 +1,21 @@
 from typing import List, Dict, Optional, Literal
+from pydantic import Field
 from typing_extensions import TypedDict, Annotated
-from pydantic import BaseModel
+from langchain_core.messages import BaseMessage
+from langgraph.graph import add_messages
 
 
-class Message(BaseModel):
+class Message(BaseMessage):
     """Message class for chat conversations"""
 
+    id: Optional[str] = None
     role: str  # "user" or "assistant"
-    content: str
+    type: Optional[Literal["human", "ai"]] = None
 
-
-# Define state management (from your notebook)
-def add_messages(messages, new_messages):
-    return messages + new_messages
+    def __post_init__(self):
+        """Set type based on role after initialization"""
+        if hasattr(self, "role") and self.role:
+            self.type = "human" if self.role == "user" else "ai"
 
 
 class ChatState(TypedDict):

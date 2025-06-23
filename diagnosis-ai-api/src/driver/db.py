@@ -12,9 +12,7 @@ from urllib.parse import quote_plus
 from src.exceptions import (
     ConnectionError,
     QueryError,
-    DataIntegrityError,
     SessionNotFoundError,
-    create_error_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,14 +128,11 @@ except KeyError as e:
 
 
 def get_dsn() -> str:
-    logger.info("Constructing database connection string")
     # Read database name and use application user credentials
     db_name = os.getenv("DB_NAME", "diagnosis_ai")
     db_user = APP_DB_USER
     db_pass = quote_plus(APP_DB_PASS)
     socket_path = DB_SOCKET_PATH
-    logger.info(f"Using database: {db_name}, user: {db_user} via socket: {socket_path}")
-    logger.debug(f"Database connection details {db_pass}")
     if SQL_CONNECTION_NAME is not None:
         logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
         return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={socket_path}"
@@ -145,10 +140,6 @@ def get_dsn() -> str:
     # Use custom host if provided (e.g., Cloud Run TCP or other env)
     db_host = os.environ.get("DB_HOST")
     if db_host:
-        logger.info(
-            "Connecting via DB_HOST environment variable",
-            extra={"unix_socket": db_host},
-        )
         return (
             f"postgresql://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=disable"
         )
@@ -157,15 +148,8 @@ def get_dsn() -> str:
     try:
         socket.gethostbyname("db")
         host = "db"
-        logger.info(
-            "Connecting to database in Docker environment", extra={"host": host}
-        )
     except socket.gaierror as e:
         host = "localhost"
-        logger.info(
-            "Database connection fallback to local development",
-            extra={"host": host, "reason": str(e)},
-        )
 
     return f"postgresql://{db_user}:{db_pass}@{host}:5432/{db_name}?sslmode=disable"
 
@@ -175,7 +159,6 @@ DB_URI = get_dsn()
 
 def init_postgres(dsn: str = DB_URI):
     """スキーマを作成する（idempotent）。"""
-    logger.info("Initializing PostgreSQL database %s", dsn)
     if SQL_CONNECTION_NAME is None and not os.getenv("DB_HOST"):
         try:
             # Connect as superuser to set up local app user
@@ -195,14 +178,12 @@ def init_postgres(dsn: str = DB_URI):
                     cur_admin.execute(
                         f"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {APP_DB_USER};"
                     )
-            logger.info("Local DB user ensured", extra={"app_user": APP_DB_USER})
         except Exception as e:
             logger.warning(
                 "Local DB user setup skipped or failed", extra={"error": str(e)}
             )
 
     try:
-        logger.info("Initializing PostgreSQL schema", extra={"dsn": dsn})
         with psycopg2.connect(dsn) as conn:
             with conn.cursor() as cur:
                 cur.execute(SCHEMA_SQL)
@@ -231,10 +212,7 @@ def create_checkpointer() -> (
     初回実行時は自動でテーブルを作成します。"""
 
     try:
-        # Use environment variable if set, otherwise construct default
-        logger.info("Creating PostgreSQL checkpointer", extra={"db_uri": DB_URI})
         checkpointer = PostgresSaver.from_conn_string(DB_URI)
-        logger.info("PostgreSQL checkpointer created successfully")
         return checkpointer
     except Exception as e:
         logger.warning(
@@ -263,15 +241,6 @@ class ChatSessionDriver:
     ) -> str:
         """Get existing user or create a new one based on Firebase auth data"""
         try:
-            logger.info(
-                "Getting or creating user",
-                extra={
-                    "firebase_uid": firebase_uid,
-                    "email": email,
-                    "display_name": display_name,
-                },
-            )
-
             with self.conn.cursor() as cur:
                 # Try to find existing user
                 cur.execute(
@@ -366,8 +335,6 @@ class ChatSessionDriver:
     def create_session(self, user_id) -> str:
         """Create a new chat session for the user."""
         try:
-            logger.info("Creating new session", extra={"user_id": user_id})
-
             with self.conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO chat_sessions (user_id, status) VALUES (%s, 'in_progress') RETURNING id",
@@ -394,8 +361,6 @@ class ChatSessionDriver:
     def close_session(self, session_id):
         """Close the chat session by setting its status to 'completed'."""
         try:
-            logger.info("Closing session", extra={"session_id": session_id})
-
             with self.conn.cursor() as cur:
                 cur.execute(
                     "UPDATE chat_sessions SET status='completed', finished_at=now() WHERE id=%s",
@@ -430,7 +395,6 @@ class GeneratedQuestionDriver:
         self.connection_pool = None
         try:
             self.conn = psycopg2.connect(DB_URI)
-            logger.info("GeneratedQuestionDriver initialized successfully")
         except psycopg2.Error as e:
             error = ConnectionError(
                 "Failed to establish database connection for GeneratedQuestionDriver",
@@ -474,10 +438,6 @@ class GeneratedQuestionDriver:
                 question_id = cur.fetchone()[0]
                 self.conn.commit()
 
-                logger.info(
-                    "Question posted successfully",
-                    extra={"question_id": str(question_id)},
-                )
                 return question_id
 
         except psycopg2.Error as e:
@@ -498,10 +458,6 @@ class GeneratedQuestionDriver:
     def get_id(self, session_id, order):
         """Get question ID from session_id and order."""
         try:
-            logger.info(
-                "Getting question ID", extra={"session_id": session_id, "order": order}
-            )
-
             with self.conn.cursor() as cur:
                 cur.execute(
                     "SELECT id FROM generated_questions WHERE session_id=%s AND display_order=%s",
@@ -541,7 +497,6 @@ class UserAnswerDriver:
         self.connection_pool = None
         try:
             self.conn = psycopg2.connect(DB_URI)
-            logger.info("UserAnswerDriver initialized successfully")
         except psycopg2.Error as e:
             error = ConnectionError(
                 "Failed to establish database connection for UserAnswerDriver",
@@ -553,16 +508,6 @@ class UserAnswerDriver:
     def post_answer(self, question_id, answer_text):
         """Post user answer to the database."""
         try:
-            logger.info(
-                "Posting user answer",
-                extra={
-                    "question_id": str(question_id),
-                    "answer_preview": answer_text[:100] + "..."
-                    if len(answer_text) > 100
-                    else answer_text,
-                },
-            )
-
             with self.conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO user_answers (question_id, answer_text) VALUES ( %s, %s)",
@@ -594,7 +539,6 @@ class QuestionOptionsDriver:
     def __init__(self):
         try:
             self.conn = psycopg2.connect(DB_URI)
-            logger.info("QuestionOptionsDriver initialized successfully")
         except psycopg2.Error as e:
             error = ConnectionError(
                 "Failed to establish database connection for QuestionOptionsDriver",
@@ -606,14 +550,6 @@ class QuestionOptionsDriver:
     def save_options(self, question_id, options_list):
         """質問に対する選択肢を保存"""
         try:
-            logger.info(
-                "Saving question options",
-                extra={
-                    "question_id": str(question_id),
-                    "options_count": len(options_list),
-                },
-            )
-
             with self.conn.cursor() as cur:
                 for i, option in enumerate(options_list):
                     cur.execute(
@@ -649,10 +585,6 @@ class QuestionOptionsDriver:
     def get_options(self, question_id):
         """質問に対する選択肢を取得"""
         try:
-            logger.info(
-                "Getting question options", extra={"question_id": str(question_id)}
-            )
-
             with self.conn.cursor() as cur:
                 cur.execute(
                     """SELECT option_text FROM question_options
