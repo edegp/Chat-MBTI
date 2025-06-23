@@ -550,13 +550,15 @@ async def undo_last_answer(
     """Undo the last answer in data collection conversation"""
     try:
         user_id = "data_collection_user"
-        logger.info("Undoing last answer for data collection", extra={"user_id": user_id})
-        
+        logger.info(
+            "Undoing last answer for data collection", extra={"user_id": user_id}
+        )
+
         result = await controller.undo_last_answer(user_id)
-        
+
         if result["status"] == "error":
             raise ValidationError(result["message"])
-        
+
         logger.info(
             "Last answer undone successfully",
             extra={
@@ -564,7 +566,7 @@ async def undo_last_answer(
                 "session_id": result.get("session_id"),
             },
         )
-        
+
         return {
             "message": result.get("message", "Last answer undone successfully"),
             "data": {
@@ -573,7 +575,7 @@ async def undo_last_answer(
                 "next_display_order": result.get("next_display_order"),
             },
         }
-        
+
     except MBTIApplicationError:
         raise
     except Exception as e:

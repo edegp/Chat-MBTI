@@ -629,7 +629,7 @@ class LangGraphDriver:
                 extra={
                     "session_id": session_id,
                     "next_display_order": state.get("next_display_order"),
-                }
+                },
             )
 
         except Exception as e:

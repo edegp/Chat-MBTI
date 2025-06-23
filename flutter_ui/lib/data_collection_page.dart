@@ -75,7 +75,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
   List<List<Map<String, dynamic>>> _phaseSessionHistory = [];
   List<List<List<String>>> _phaseOptionsHistory = [];
   List<List<String>> _phaseQuestionHistory = [];
-  
+
   // Lazy sync state management
   bool _hasServerDesync = false;  // Track if local state diverges from server
   String? _lastAnswerBeforeBack;  // Store answer before going back for comparison
@@ -199,7 +199,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
     try {
       // Check if we need to sync server state due to answer divergence after going back
       bool needsServerSync = _hasServerDesync && _lastAnswerBeforeBack != null && _lastAnswerBeforeBack != answer;
-      
+
       if (needsServerSync) {
         // Undo the last answer on server before proceeding with new answer
         try {
@@ -212,7 +212,7 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
           print('Warning: Failed to undo last answer on server: $e');
         }
       }
-      
+
       final newEntry = {
         'participant_name': _participantName,
         'phase': _currentPhase,
@@ -1362,36 +1362,36 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
     setState(() {
       if (_currentQuestionInPhase > 1) {
         _currentQuestionInPhase--;
-        
+
         // Store the answer that will be rolled back for comparison
         if (_currentSessionData.isNotEmpty) {
           _lastAnswerBeforeBack = _currentSessionData.last['answer'] as String;
         }
-        
+
         // Roll back local state only
         _currentSessionData.removeLast();
         _questionHistory.removeLast();
         _optionsHistory.removeLast();
-        
+
         // Restore display
         _currentQuestion = _questionHistory.last;
         _currentOptions = _optionsHistory.last;
         _sessionId = _currentSessionData.isNotEmpty
           ? _currentSessionData.last['session_id'] as String?
           : _sessionId;
-          
+
         // Mark as potentially out of sync - will sync on next different answer
         _hasServerDesync = true;
-        
+
       } else if (_currentPhase > 1) {
         // Navigate to previous phase
         _currentPhase--;
-        
+
         // Store the last answer from current phase for comparison
         if (_currentSessionData.isNotEmpty) {
           _lastAnswerBeforeBack = _currentSessionData.last['answer'] as String;
         }
-        
+
         _currentSessionData = _phaseSessionHistory.removeLast();
         _questionHistory = _phaseQuestionHistory.removeLast();
         _optionsHistory = _phaseOptionsHistory.removeLast();
@@ -1399,11 +1399,11 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
         _currentQuestion = _questionHistory.last;
         _currentOptions = _optionsHistory.last;
         _sessionId = _currentSessionData.last['session_id'] as String?;
-        
+
         // Mark as potentially out of sync
         _hasServerDesync = true;
       }
-      
+
       _error = null;
       _isLoading = false;
     });
