@@ -18,18 +18,18 @@ class DataCollectionConstants {
     'ISFJ': '守護者',
     'INFJ': '提唱者',
     'INTJ': '建築家',
-    'ISTP': '職人',
-    'ISFP': '芸術家',
-    'INFP': '理想家',
+    'ISTP': '巨匠',
+    'ISFP': '冒険家',
+    'INFP': '仲介者',
     'INTP': '論理学者',
     'ESTP': '起業家',
     'ESFP': 'エンターテイナー',
-    'ENFP': '活動家',
+    'ENFP': '運動家',
     'ENTP': '討論者',
-    'ESTJ': '管理職',
-    'ESFJ': '提供者',
-    'ENFJ': '教師',
-    'ENTJ': '指導者'
+    'ESTJ': '幹部',
+    'ESFJ': '領事官',
+    'ENFJ': '主人公',
+    'ENTJ': '指導官'
   };
 
   static const List<String> elementTypes = [

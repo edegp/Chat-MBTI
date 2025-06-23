@@ -17,7 +17,7 @@ class DataCollectionAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -47,7 +47,7 @@ class DataCollectionAppBar extends StatelessWidget {
               size: 20,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: GestureDetector(
               onTap: isCollectionInProgress ? onReset : null,
@@ -61,14 +61,7 @@ class DataCollectionAppBar extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: Colors.black,
                     ),
-                  ),
-                  Text(
-                    'MBTI質問応答データの収集',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
-                  ),
+                  )
                 ],
               ),
             ),

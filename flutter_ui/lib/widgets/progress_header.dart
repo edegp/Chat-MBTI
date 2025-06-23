@@ -21,8 +21,14 @@ class ProgressHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isVerySmallScreen = screenWidth < 360;
+    final isSmallScreen = screenWidth < 600;
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(
+        isVerySmallScreen ? 12 : (isSmallScreen ? 16 : 18)
+      ),
       decoration: BoxDecoration(
         color: Colors.purple[50],
         borderRadius: const BorderRadius.only(
@@ -41,25 +47,27 @@ class ProgressHeader extends StatelessWidget {
                   children: [
                     Text(
                       'フェーズ $currentPhase / ${DataCollectionConstants.totalPhases}',
-                      style: const TextStyle(
-                        fontSize: 18,
+                      style: TextStyle(
+                        fontSize: isVerySmallScreen ? 16 : (isSmallScreen ? 17 : 18),
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
                       ),
                     ),
                     if (isCollectionInProgress) ...[
+                      SizedBox(height: isVerySmallScreen ? 2 : 4),
                       Text(
                         '${getCurrentElementType(currentPhase)} (${getCurrentCycle(currentPhase)}回目)',
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: TextStyle(
+                          fontSize: isVerySmallScreen ? 14 : (isSmallScreen ? 15 : 16),
                           color: Colors.purple,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      SizedBox(height: isVerySmallScreen ? 1 : 2),
                       Text(
                         '質問 $currentQuestionInPhase / ${DataCollectionConstants.questionsPerElement}',
-                        style: const TextStyle(
-                          fontSize: 16,
+                        style: TextStyle(
+                          fontSize: isVerySmallScreen ? 14 : (isSmallScreen ? 15 : 16),
                           color: Colors.black54,
                         ),
                       ),
@@ -68,15 +76,18 @@ class ProgressHeader extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isVerySmallScreen ? 8 : 12,
+                  vertical: isVerySmallScreen ? 4 : 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.purple,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   '$collectedDataLength / ${DataCollectionConstants.totalPhases * DataCollectionConstants.questionsPerElement}',
-                  style: const TextStyle(
-                    fontSize: 14,
+                  style: TextStyle(
+                    fontSize: isVerySmallScreen ? 12 : 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -84,7 +95,7 @@ class ProgressHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isVerySmallScreen ? 8 : 10),
           LinearProgressIndicator(
             value: collectedDataLength / (DataCollectionConstants.totalPhases * DataCollectionConstants.questionsPerElement),
             backgroundColor: Colors.purple[100],

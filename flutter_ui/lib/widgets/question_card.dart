@@ -12,8 +12,19 @@ class QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // More detailed screen size detection
+    final isVerySmallScreen = screenWidth < 360; // Very small phones
+    final isSmallScreen = screenWidth < 600;
+    final isShortScreen = screenHeight < 700;
+    
     return Container(
-      padding: const EdgeInsets.all(16),
+      width: double.infinity,
+      padding: EdgeInsets.all(
+        isVerySmallScreen ? 8 : (isSmallScreen ? 12 : 16)
+      ),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
@@ -25,36 +36,41 @@ class QuestionCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: EdgeInsets.all(isVerySmallScreen ? 4 : 6),
                 decoration: BoxDecoration(
                   color: Colors.purple,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.psychology,
-                  size: 16,
+                  size: isVerySmallScreen ? 12 : (isSmallScreen ? 14 : 16),
                   color: Colors.white,
                 ),
               ),
               const SizedBox(width: 8),
-              Text(
-                'Q$currentQuestionInPhase',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.purple,
+              Flexible(
+                child: Text(
+                  'Q$currentQuestionInPhase',
+                  style: TextStyle(
+                    fontSize: isVerySmallScreen ? 11 : (isSmallScreen ? 12 : 14),
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isVerySmallScreen ? 6 : (isSmallScreen ? 8 : 12)),
           Text(
             question,
-            style: const TextStyle(
-              fontSize: 18,
-              height: 1.4,
+            style: TextStyle(
+              fontSize: isVerySmallScreen ? 14 : (isSmallScreen ? 16 : 18),
+              height: isShortScreen ? 1.3 : 1.5,
               color: Colors.black87,
             ),
+            textAlign: TextAlign.left,
+            softWrap: true,
+            overflow: TextOverflow.visible,
           ),
         ],
       ),

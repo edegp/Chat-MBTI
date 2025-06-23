@@ -597,20 +597,22 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
               onReset: _confirmReset,
               onSignOut: _signOut,
             ),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+            Expanded(        child: Container(
+          margin: EdgeInsets.all(
+            MediaQuery.of(context).size.width < 360 ? 8 : 
+            MediaQuery.of(context).size.width < 600 ? 12 : 16
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
                 child: Column(
                   children: [
                     ProgressHeader(
@@ -684,7 +686,10 @@ class _DataCollectionPageState extends State<DataCollectionPage> {
                 ),
               )
             : SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: EdgeInsets.all(
+                  MediaQuery.of(context).size.width < 360 ? 12 : 
+                  MediaQuery.of(context).size.width < 600 ? 16 : 20
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

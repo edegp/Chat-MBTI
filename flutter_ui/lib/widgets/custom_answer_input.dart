@@ -12,27 +12,21 @@ class CustomAnswerInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isVerySmallScreen = screenWidth < 360;
+    final isSmallScreen = screenWidth < 600;
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(
+        isVerySmallScreen ? 12 : (isSmallScreen ? 16 : 20)
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(
           top: BorderSide(color: Colors.grey[200]!),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '自由に回答する',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
+      child: Row(
             children: [
               Expanded(
                 child: Container(
@@ -43,20 +37,22 @@ class CustomAnswerInput extends StatelessWidget {
                   ),
                   child: TextField(
                     controller: textController,
-                    style: const TextStyle(fontSize: 16),
+                    style: TextStyle(
+                      fontSize: isVerySmallScreen ? 14 : (isSmallScreen ? 15 : 16)
+                    ),
                     decoration: InputDecoration(
                       hintText: 'あなたの考えを教えてください...',
                       hintStyle: TextStyle(
                         color: Colors.grey[400],
-                        fontSize: 16,
+                        fontSize: isVerySmallScreen ? 14 : (isSmallScreen ? 15 : 16),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide.none,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 12,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: isVerySmallScreen ? 8 : 12,
+                        vertical: isVerySmallScreen ? 8 : 12,
                       ),
                       filled: true,
                       fillColor: Colors.white,
@@ -72,7 +68,7 @@ class CustomAnswerInput extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: isVerySmallScreen ? 6 : 8),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.purple,
@@ -87,13 +83,11 @@ class CustomAnswerInput extends StatelessWidget {
                     }
                   },
                   icon: const Icon(Icons.send, color: Colors.white),
-                  iconSize: 18,
+                  iconSize: isVerySmallScreen ? 16 : 18,
                 ),
               ),
             ],
           ),
-        ],
-      ),
     );
   }
 }

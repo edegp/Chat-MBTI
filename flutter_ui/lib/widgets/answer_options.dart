@@ -12,8 +12,19 @@ class AnswerOptions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // More detailed screen size detection
+    final isVerySmallScreen = screenWidth < 360;
+    final isSmallScreen = screenWidth < 600;
+    final isShortScreen = screenHeight < 700;
+    
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.symmetric(
+        horizontal: isVerySmallScreen ? 8 : (isSmallScreen ? 12 : 16),
+        vertical: isVerySmallScreen ? 8 : (isSmallScreen ? 12 : 16),
+      ),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         border: Border(
@@ -23,27 +34,31 @@ class AnswerOptions extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '選択肢から選ぶ',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: isVerySmallScreen ? 12 : (isSmallScreen ? 14 : 16),
               fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: isVerySmallScreen ? 6 : (isSmallScreen ? 8 : 12)),
           ...options.asMap().entries.map((entry) {
             final index = entry.key;
             final option = entry.value;
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
+              margin: EdgeInsets.only(
+                bottom: isVerySmallScreen ? 4 : (isSmallScreen ? 6 : 8)
+              ),
               child: InkWell(
                 onTap: () => onAnswerSelected(option),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(14),
+                  padding: EdgeInsets.all(
+                    isVerySmallScreen ? 8 : (isSmallScreen ? 10 : 12)
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -53,39 +68,45 @@ class AnswerOptions extends StatelessWidget {
                     ),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        width: 24,
-                        height: 24,
+                        width: isVerySmallScreen ? 18 : (isSmallScreen ? 20 : 24),
+                        height: isVerySmallScreen ? 18 : (isSmallScreen ? 20 : 24),
                         decoration: BoxDecoration(
                           color: Colors.purple,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(
+                            isVerySmallScreen ? 9 : (isSmallScreen ? 10 : 12)
+                          ),
                         ),
                         child: Center(
                           child: Text(
                             String.fromCharCode(65 + index), // A, B, C...
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 14,
+                              fontSize: isVerySmallScreen ? 10 : (isSmallScreen ? 12 : 14),
                             ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: isVerySmallScreen ? 6 : (isSmallScreen ? 8 : 12)),
                       Expanded(
                         child: Text(
                           option,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            height: 1.4,
+                          style: TextStyle(
+                            fontSize: isVerySmallScreen ? 12 : (isSmallScreen ? 14 : 16),
+                            height: isShortScreen ? 1.3 : 1.5,
                             color: Colors.black87,
                           ),
+                          textAlign: TextAlign.left,
+                          softWrap: true,
+                          overflow: TextOverflow.visible,
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.arrow_forward_ios,
-                        size: 14,
+                        size: isVerySmallScreen ? 10 : (isSmallScreen ? 12 : 14),
                         color: Colors.grey,
                       ),
                     ],
