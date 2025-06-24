@@ -1,6 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_ui/firebase_options.dart';
+import 'package:frontend/firebase_options.dart';
 import 'package:url_strategy/url_strategy.dart';
 
 import 'chat_page_friendly.dart';

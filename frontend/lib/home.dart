@@ -111,7 +111,7 @@ class _LoginPageState extends State<LoginPage> {
       final actionCodeSettings = ActionCodeSettings(
         url: 'http://localhost:5000/', // Change to your app's domain
         handleCodeInApp: true,
-        androidPackageName: 'flutter_ui (android)',
+        androidPackageName: 'frontend (android)',
         androidInstallApp: true,
         // androidMinimumVersion: '12',
         iOSBundleId: 'com.example.flutterUi',
@@ -275,11 +275,16 @@ class _LoginPageState extends State<LoginPage> {
                           decoration: BoxDecoration(
                             color: Colors.red.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                            border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.3),
+                            ),
                           ),
                           child: Text(
                             _error!,
-                            style: const TextStyle(color: Colors.red, fontSize: 14),
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       if (_error != null) const SizedBox(height: 16),

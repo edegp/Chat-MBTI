@@ -72,7 +72,7 @@ docker compose down -v
 ### File Structure
 
 ```
-├── flutter_ui/           # Flutter web application
+├── frontend/           # Flutter web application
 │   ├── lib/              # Dart source code
 │   ├── web/              # Web-specific files
 │   └── Dockerfile        # Flutter container config

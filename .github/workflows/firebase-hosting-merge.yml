@@ -7,13 +7,13 @@ on:
     branches:
       - main
     paths:
-      - 'flutter_ui/**'
+      - "frontend/**"
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./flutter_ui
+        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +21,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: "stable"
 
       - name: Install Flutter dependencies
         run: flutter pub get
@@ -32,5 +32,5 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHAT_MBTI_458210 }}
           channelId: live
-          entryPoint: flutter_ui/
+          entryPoint: frontend/
           projectId: chat-mbti-458210

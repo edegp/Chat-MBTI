@@ -5,7 +5,7 @@ name: Deploy to Firebase Hosting on PR
 on:
   pull_request:
     paths:
-      - 'flutter_ui/**'
+      - "frontend/**"
 permissions:
   checks: write
   contents: read
@@ -16,14 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./flutter_ui
+        working-directory: ./frontend
     steps:
       - uses: actions/checkout@v4
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: "stable"
 
       - name: Install Flutter dependencies
         run: flutter pub get
@@ -32,5 +32,5 @@ jobs:
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHAT_MBTI_458210 }}
-          entryPoint: flutter_ui/
+          entryPoint: frontend/
           projectId: chat-mbti-458210

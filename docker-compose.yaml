@@ -2,21 +2,21 @@ services:
   # Flutter Web Application
   flutter:
     build:
-      context: ./flutter_ui
+      context: ./frontend
       dockerfile: Dockerfile
     develop:
       watch:
         - action: sync
-          path: ./flutter_ui/lib
+          path: ./frontend/lib
           target: /app/lib
         - action: sync
-          path: ./flutter_ui/web
+          path: ./frontend/web
           target: /app/web
         - action: sync
-          path: ./flutter_ui/assets
+          path: ./frontend/assets
           target: /app/assets
         - action: rebuild
-          path: ./flutter_ui/pubspec.yaml
+          path: ./frontend/pubspec.yaml
     ports:
       - '3000:3000'
     environment:

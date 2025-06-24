@@ -142,7 +142,7 @@ uv run pytest --cov=src --cov-report=term-missing
 ### Flutter Tests
 
 ```bash
-cd flutter_ui
+cd frontend
 flutter test
 flutter analyze
 flutter build web

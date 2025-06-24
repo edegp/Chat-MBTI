@@ -94,7 +94,7 @@ uv run pytest ...
 │ │ ├── test_utils.py
 │ │ └── test_workflow_gateway.py
 │ └── uv.lock
-└── flutter_ui
+└── frontend
 ├── FIREBASE_HOSTING_SETUP.md
 ├── README.md
 ├── analysis_options.yaml
@@ -126,7 +126,7 @@ uv run pytest ...
   - Error handling and logging, GCS upload integration, Terraform-based infrastructure, Cloud Build deployment
   - Test suite with pytest covering controllers, gateways, services, and integration tests
 
-- Flutter UI (flutter_ui):
+- Flutter UI (frontend):
 
   - Flutter application with Firebase Auth guard, email verification, and chat interface (`chat_page_friendly.dart`)
   - HTTP integration via `DataCollectionApiService`, local state persisted with `SharedPreferences`

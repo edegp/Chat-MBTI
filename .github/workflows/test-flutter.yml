@@ -4,24 +4,24 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'flutter_ui/**'
-      - '.github/workflows/test-flutter.yml'
+      - "frontend/**"
+      - ".github/workflows/test-flutter.yml"
   pull_request:
     branches: [main]
     paths:
-      - 'flutter_ui/**'
-      - '.github/workflows/test-flutter.yml'
+      - "frontend/**"
+      - ".github/workflows/test-flutter.yml"
   workflow_call:
     outputs:
       test-result:
-        description: 'Result of Flutter tests'
+        description: "Result of Flutter tests"
         value: ${{ jobs.test-flutter.outputs.result }}
       build-artifact:
-        description: 'Name of the build artifact'
+        description: "Name of the build artifact"
         value: ${{ jobs.test-flutter.outputs.artifact-name }}
 
 env:
-  FLUTTER_VERSION: '3.29.3'
+  FLUTTER_VERSION: "3.29.3"
 
 jobs:
   test-flutter:
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./flutter_ui
+        working-directory: ./frontend
     outputs:
       result: ${{ steps.test.outcome }}
       artifact-name: flutter-web-build
@@ -42,7 +42,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: "stable"
 
       - name: Install Flutter dependencies
         run: flutter pub get
@@ -63,5 +63,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flutter-web-build
-          path: flutter_ui/build/web/
+          path: frontend/build/web/
           retention-days: 1
