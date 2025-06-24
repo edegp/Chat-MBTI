@@ -49,4 +49,4 @@ COPY . .
 # （開発用なら reload で OK、商用なら外す）
 EXPOSE 10000
 
-CMD ["uv", "run", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "10000", "--reload"]
+CMD ["uv", "run", "uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "10000"]
