@@ -45,7 +45,7 @@ resource "google_cloudbuild_trigger" "mbti-diagnosis-chat-github-trigger" {
   included_files = ["diagnosis-chat-api/**"]
   ignored_files  = ["README.md", "docs/**"]
 
-  filename        = "terraform/yaml/cloudbuild/diagnosis-chat-api/.yaml"
+  filename        = "terraform/yaml/cloudbuild/diagnosis-chat-api.yaml"
   service_account = google_service_account.cloud_build_sa.id
 
   substitutions = {

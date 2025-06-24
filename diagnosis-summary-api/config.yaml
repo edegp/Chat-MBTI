@@ -1,0 +1,30 @@
+energy:
+  model_name: HajimeOgawa/gemma3-4b-mbti-chat-energy
+  element_name: 内向型(I) or 外向型(E)
+  element_description: 内向型は一人での活動を好み、社会的な交流によってエネルギーを消耗する傾向があります。外向型はグループでの活動を好み、社会的な交流によって活力を得ます。外向型はリーダシップを発揮する傾向があります。
+  label: I or N
+  true_labels: ["I","N"]
+
+
+mind:
+  model_name: HajimeOgawa/gemma3-4b-mbti-chat-mind
+  element_name: 直感型(N) or 観察型(S)
+  element_description: 直感型は物事を想像力豊かで、深く考察することを好みます。全体像を捉えようとするのも直感型の特徴です。観察型は観測可能な事実と直接的な結果に重きをおく現実主義者です。とにかく手を動かすことを好みます。
+  label: N or S
+  true_labels: ["N","S"]
+
+
+nature:
+  model_name: HajimeOgawa/gemma3-4b-mbti-chat-nature
+  element_name: 思考型(T) or 感情型(F)
+  element_description: 思考型は論理と客観性を重視し、感情より合理性で判断する傾向があります。一方感情型は共感や調和を大切にし、他者の幸福や自分の気持ちに基づいて意思決定する傾向があります。
+  label: T or F
+  true_labels: ["T","F"]
+
+
+tactics:
+  model_name: HajimeOgawa/gemma3-4b-mbti-chat-tactics
+  element_name: 判断型(J) or 知覚型(P)
+  element_description: 判断型は計画や構造、明確さに安心を覚え、責任や完了を重視する傾向があります。一方知覚型は柔軟性と機会を好み、不確実性を刺激に変える傾向があります。
+  label: J or P
+  true_labels: ["J","P"]
