@@ -6,6 +6,6 @@ uv run python app.py
 ```
 ## Docker
 ```
-docker build . -t diagnosis-ai-api
-docker run -t diagnosis-ai-api
+docker build . -t diagnosis-chat-api
+docker run -t diagnosis-chat-api
 ```

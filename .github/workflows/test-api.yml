@@ -4,21 +4,21 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'diagnosis-ai-api/**'
-      - '.github/workflows/test-api.yml'
+      - "diagnosis-chat-api/**"
+      - ".github/workflows/test-api.yml"
   pull_request:
     branches: [main]
     paths:
-      - 'diagnosis-ai-api/**'
-      - '.github/workflows/test-api.yml'
+      - "diagnosis-chat-api/**"
+      - ".github/workflows/test-api.yml"
   workflow_call:
     outputs:
       test-result:
-        description: 'Result of API tests'
+        description: "Result of API tests"
         value: ${{ jobs.test-api.outputs.result }}
 
 env:
-  PYTHON_VERSION: '3.12'
+  PYTHON_VERSION: "3.12"
   DB_APP_USER: postgres
   DB_APP_PASS: postgres
   DB_ADMIN_USER: postgres
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./diagnosis-ai-api
+        working-directory: ./diagnosis-chat-api
     outputs:
       result: ${{ steps.test.outcome }}
 
@@ -63,7 +63,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          file: ./diagnosis-ai-api/coverage.xml
+          file: ./diagnosis-chat-api/coverage.xml
           flags: api-tests
           name: api-coverage
           fail_ci_if_error: false

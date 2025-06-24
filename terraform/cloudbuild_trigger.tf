@@ -31,30 +31,63 @@ resource "google_project_iam_member" "cloud_build_sa_run_admin" {
   member  = "serviceAccount:${google_service_account.cloud_build_sa.email}"
 }
 
-resource "google_cloudbuild_trigger" "mbti-diagnosis-api-github-trigger" {
-  name = "mbti-diagnosis-api-github-trigger"
+resource "google_cloudbuild_trigger" "mbti-diagnosis-chat-github-trigger" {
+  name = "mbti-diagnosis-chat-github-trigger"
 
   github {
-    owner = var.github_owner
-    name  = var.github_repo
+    owner = var.diagnosis_chat.github.owner
+    name  = var.diagnosis_chat.github.repo
     push {
       branch = "^main$"
     }
   }
 
-  included_files = ["diagnosis-ai-api/**"]
+  included_files = ["diagnosis-chat-api/**"]
   ignored_files  = ["README.md", "docs/**"]
 
-  filename        = "diagnosis-ai-api/terraform/yaml/cloudbuild.yaml"
+  filename        = "terraform/yaml/cloudbuild/diagnosis-chat-api/.yaml"
   service_account = google_service_account.cloud_build_sa.id
 
   substitutions = {
     _AR_HOSTNAME   = var.ar_hostname
     _AR_PROJECT_ID = var.project_id
     _AR_REPOSITORY = var.ar_repository
-    _SERVICE_NAME  = var.app_name
+    _SERVICE_NAME  = var.diagnosis_chat.name
     _DEPLOY_REGION = var.region
-    REPO_NAME      = lower(var.github_repo)
+    REPO_NAME      = lower(var.diagnosis_chat.github.repo)
+  }
+
+  depends_on = [
+    google_project_iam_member.artifact_registry_editor,
+    google_project_iam_member.cloudbuild_logging_writer
+  ]
+}
+
+
+resource "google_cloudbuild_trigger" "mbti-diagnosis-summary-github-trigger" {
+  name = "mbti-diagnosis-summary-github-trigger"
+
+  github {
+    owner = var.diagnosis_summary.github.owner
+    name  = var.diagnosis_summary.github.repo
+    push {
+      branch = "^main$"
+    }
+  }
+
+  included_files = ["diagnosis-summary-api/**"]
+  ignored_files  = ["scripts/**", "README.md", "tests/**"]
+
+  filename        = "terraform/yaml/cloudbuild/diagnosis-summary-api.yaml"
+  service_account = google_service_account.cloud_build_sa.id
+
+  substitutions = {
+    _AR_HOSTNAME   = var.ar_hostname
+    _AR_PROJECT_ID = var.project_id
+    _AR_REPOSITORY = var.ar_repository
+    _SERVICE_NAME  = var.diagnosis_summary.name
+    _DEPLOY_REGION = var.region
+    REPO_NAME      = lower(var.diagnosis_summary.github.repo)
   }
 
   depends_on = [

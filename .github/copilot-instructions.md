@@ -15,7 +15,7 @@ uv run pytest ...
 ├── LICENSE
 ├── README.md
 ├── UI_HISTORY_RESTORE_IMPROVEMENT.md
-├── diagnosis-ai-api
+├── diagnosis-chat-api
 │ ├── Dockerfile
 │ ├── README.md
 │ ├── config
@@ -118,7 +118,7 @@ uv run pytest ...
 
 ## Overall Project Specifications
 
-- Backend (diagnosis-ai-api):
+- Backend (diagnosis-chat-api):
 
   - FastAPI with Clean Architecture: `api`, `controller`, `usecase`, `gateway`, `driver` modules
   - Dependency injection via `di_container.py` and Pydantic for request/response models
@@ -135,8 +135,8 @@ uv run pytest ...
   - Widget tests under `test/widget_test.dart`
 
 - CI/CD and Infrastructure:
-  - Docker and `docker-compose` for local development (`diagnosis-ai-api`)
-  - Terraform configurations under `diagnosis-ai-api/terraform` and Cloud Build scripts under `diagnosis-ai-api/deploy`
+  - Docker and `docker-compose` for local development (`diagnosis-chat-api`)
+  - Terraform configurations under `diagnosis-chat-api/terraform` and Cloud Build scripts under `diagnosis-chat-api/deploy`
   - Python managed by `uv`, run backend tests with `uv run pytest ...`
 
 ## MBTI Data Collection Feature Summary

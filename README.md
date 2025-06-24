@@ -76,7 +76,7 @@ docker compose down -v
 │   ├── lib/              # Dart source code
 │   ├── web/              # Web-specific files
 │   └── Dockerfile        # Flutter container config
-├── diagnosis-ai-api/     # Python FastAPI backend
+├── diagnosis-chat-api/     # Python FastAPI backend
 │   ├── src/              # Python source code
 │   ├── config/           # Configuration files
 │   └── Dockerfile        # API container config

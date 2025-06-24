@@ -17,17 +17,17 @@ resource "google_billing_budget" "budget" {
   }
 
   threshold_rules {
-    threshold_percent = 0.5  # 50%
+    threshold_percent = 0.5 # 50%
     spend_basis       = "CURRENT_SPEND"
   }
 
   threshold_rules {
-    threshold_percent = 0.8  # 80%
+    threshold_percent = 0.8 # 80%
     spend_basis       = "CURRENT_SPEND"
   }
 
   threshold_rules {
-    threshold_percent = 1.0  # 100%
+    threshold_percent = 1.0 # 100%
     spend_basis       = "CURRENT_SPEND"
   }
 

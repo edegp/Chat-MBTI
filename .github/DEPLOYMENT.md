@@ -135,7 +135,7 @@ The workflow automatically creates an optimized `firebase.json` for hosting:
 ### API Tests
 
 ```bash
-cd diagnosis-ai-api
+cd diagnosis-chat-api
 uv run pytest --cov=src --cov-report=term-missing
 ```
 

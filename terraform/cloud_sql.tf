@@ -1,6 +1,6 @@
 # Create database
 resource "google_sql_database" "database" {
-  name     = var.db_name
+  name     = var.diagnosis_chat.db.name
   instance = google_sql_database_instance.postgres.name
 }
 
@@ -36,12 +36,12 @@ resource "google_sql_user" "admin" {
 
 # Create Cloud SQL PostgreSQL instance for LangGraph checkpoints
 resource "google_sql_database_instance" "postgres" {
-  name             = "${var.app_name}-postgres"
+  name             = "${var.diagnosis_chat.name}-postgres"
   database_version = "POSTGRES_15"
   region           = var.region
 
   settings {
-    tier                        = var.db_tier
+    tier                        = var.diagnosis_chat.db.tier
     availability_type           = "ZONAL"
     disk_type                   = "PD_SSD"
     disk_size                   = 20

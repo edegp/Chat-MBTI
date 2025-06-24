@@ -40,7 +40,7 @@ gcloud builds triggers create github \
     --repo-name="${GITHUB_REPO}" \
     --repo-owner="${GITHUB_OWNER}" \
     --branch-pattern="^${GITHUB_BRANCH}$" \
-    --build-config="diagnosis-ai-api/cloudbuild.yaml" \
+    --build-config="diagnosis-chat-api/cloudbuild.yaml" \
     --name="${SERVICE_NAME}-github-trigger" \
     --description="Automatic deployment trigger for ${SERVICE_NAME}"
 

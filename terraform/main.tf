@@ -45,20 +45,20 @@ resource "google_artifact_registry_repository" "main" {
 
 # Create VPC network for private connectivity
 resource "google_compute_network" "vpc" {
-  name                    = "${var.app_name}-vpc"
+  name                    = "${var.diagnosis_chat.name}-vpc"
   auto_create_subnetworks = false
 }
 
 resource "google_compute_subnetwork" "vpc_subnet" {
-  name          = "${var.app_name}-subnet"
-  ip_cidr_range = var.vpc_subnet_cidr
+  name          = "${var.diagnosis_chat.name}-subnet"
+  ip_cidr_range = var.diagnosis_chat.vpc.subnet_cidr
   region        = var.region
   network       = google_compute_network.vpc.id
 }
 
 # Allocate a global internal IP range for VPC peering (Service Networking)
 resource "google_compute_global_address" "private_ip_address" {
-  name          = "${var.app_name}-private-ip"
+  name          = "${var.diagnosis_chat.name}-private-ip"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16
@@ -73,7 +73,7 @@ resource "google_service_networking_connection" "private_vpc_connection" {
 }
 
 resource "google_vpc_access_connector" "connector" {
-  name          = var.vpc_connector_name
+  name          = var.diagnosis_chat.vpc.connector_name
   region        = var.region
   network       = google_compute_network.vpc.id
   ip_cidr_range = "10.10.0.0/28"

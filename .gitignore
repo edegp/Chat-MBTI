@@ -243,4 +243,8 @@ cython_debug/
 
 .firebase/
 
-.DS_Store
+.DS_Store*
+
+model/**
+.env*
+*.env*
