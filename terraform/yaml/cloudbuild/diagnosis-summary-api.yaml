@@ -1,13 +1,14 @@
 steps:
   - name: gcr.io/cloud-builders/docker
+    env: ["DOCKER_BUILDKIT=1"]
     args:
       - build
       - "--no-cache"
       - "-t"
       - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - diagnosis-summary-api
       - "-f"
       - diagnosis-summary-api/Dockerfile
+      - diagnosis-summary-api
     id: Build
   - name: gcr.io/cloud-builders/docker
     args:
