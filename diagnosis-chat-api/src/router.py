@@ -7,9 +7,6 @@ from pydantic import BaseModel
 import logging
 from typing import Optional
 from fastapi.responses import JSONResponse
-from google.cloud import storage
-import os
-import datetime
 
 # Import controller directly to avoid circular imports
 from src.controller.mbti_controller import (

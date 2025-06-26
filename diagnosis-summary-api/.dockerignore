@@ -1,5 +1,5 @@
 tests/
 
-.venv
+.venv/
 
 model/

@@ -5,7 +5,7 @@ import logging
 # Add configuration for CORS if needed
 from fastapi.middleware.cors import CORSMiddleware
 
-from .router import router
+from src.router import router
 from src.exceptions import (
     MBTIApplicationError,
     AuthenticationError,
