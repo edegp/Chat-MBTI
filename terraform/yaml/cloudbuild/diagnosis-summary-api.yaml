@@ -10,9 +10,9 @@ steps:
     env: ['DOCKER_BUILDKIT=1']
     args:
       - build
-      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$_CACHE_TAG
-      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$COMMIT_SHA
-      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$_CACHE_TAG
+      - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$_CACHE_TAG
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$_CACHE_TAG
       - --file=diagnosis-summary-api/Dockerfile
       - diagnosis-summary-api
     id: Build

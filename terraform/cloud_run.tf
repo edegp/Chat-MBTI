@@ -226,8 +226,8 @@ resource "google_cloud_run_v2_service" "service" {
         value = "/workspace"
       }
       env {
-        name  = "HF_ENDPOINT"
-        value = "https://hf-mirror.com"
+        name  = "HF_HUB_OFFLINE"
+        value = "1"
       }
       env {
         name = "GEMINI_API_KEY"
