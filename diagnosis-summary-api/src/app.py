@@ -26,6 +26,7 @@ class ReportRequest(BaseModel):
 class StreamResponse(BaseModel):
     element: str
     report: str
+    gemma_judge: str
     gemma_success: bool
 
 
@@ -79,6 +80,7 @@ async def judge_and_make_report_app(request: ReportRequest):
                 response_chunk = StreamResponse(
                     element=element,
                     report=report,
+                    gemma_judge=processor.judge,
                     gemma_success=is_success_gemma_judge,
                 ).model_dump_json()
 
