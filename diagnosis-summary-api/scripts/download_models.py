@@ -14,8 +14,9 @@ for key, repo in MODEL_IDS.items():
     print(f"→ ダウンロード: {repo} → {local_dir}")
     snapshot_download(
         repo_id=repo,
-        local_dir=local_dir,
+        cache_dir=BASE_DIR,
         max_workers=2,
         etag_timeout=1200,
+        local_dir_use_symlinks=False,
     )
 print("✓ 4 モデル完了")

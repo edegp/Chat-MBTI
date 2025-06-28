@@ -96,7 +96,7 @@ variable "diagnosis_summary" {
   })
   default = {
     name             = "mbti-diagnosis-summary"
-    memory_limit     = "16Gi"
+    memory_limit     = "32Gi"
     cpu_limit        = "4000m"
     max_instances    = 10
     min_instances    = 0

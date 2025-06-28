@@ -40,6 +40,7 @@ resource "google_service_account_iam_member" "allow_build_act_as_run_sa" {
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.cloud_build_sa.email}"
 }
+
 resource "google_cloud_run_v2_service" "main" {
   name     = var.diagnosis_chat.name
   location = var.region
@@ -170,6 +171,20 @@ resource "google_cloud_run_v2_service" "main" {
   }
 }
 
+# create buket for GCS FUSE
+resource "google_storage_bucket" "fuse_bucket" {
+  name     = var.diagnosis_summary.fuse_bucket_name
+  location = "ASIA-SOUTHEAST1"
+  project  = var.project_id
+
+  uniform_bucket_level_access = true
+  force_destroy               = true
+
+  labels = {
+    managed_by = "gcp-cloud-build-deploy-cloud-run"
+  }
+}
+
 ################################
 #  Cloud Run (Gen2) Service    #
 ################################
@@ -183,15 +198,7 @@ resource "google_cloud_run_v2_service" "service" {
   deletion_protection = false
 
   template {
-    gpu_zonal_redundancy_disabled = true
-    service_account               = google_service_account.cloud_run_sa.email
-    annotations = {
-      "run.googleapis.com/execution-environment" = "gen2"
-      # Optional autoscaling hints
-      "autoscaling.knative.dev/minScale" = tostring(var.diagnosis_summary.min_instances)
-      "autoscaling.knative.dev/maxScale" = tostring(var.diagnosis_summary.max_instances)
-    }
-
+    service_account = google_service_account.cloud_run_sa.email
     # -------------------------
     #  Volume: GCS FUSE bucket
     # -------------------------
@@ -199,13 +206,14 @@ resource "google_cloud_run_v2_service" "service" {
       name = "hf-cache"
       gcs {
         bucket    = var.diagnosis_summary.fuse_bucket_name
-        read_only = true # 変更可 (false にすると書き込みも許可)
+        read_only = false
       }
     }
     node_selector {
       accelerator = "nvidia-l4"
     }
     max_instance_request_concurrency = 1
+    gpu_zonal_redundancy_disabled    = true
     # -------------------------
     #  Container definition
     # -------------------------
@@ -220,13 +228,26 @@ resource "google_cloud_run_v2_service" "service" {
       # Runtime environment variables so Transformers uses the mounted cache
       env {
         name  = "HF_HOME"
-        value = "/workspace/.cache/huggingface"
+        value = "/workspace"
+      }
+      env {
+        name  = "HF_ENDPOINT"
+        value = "https://hf-mirror.com"
+      }
+      env {
+        name = "GEMINI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = "${var.app_name}-gemini-api-key"
+            version = "latest"
+          }
+        }
       }
 
       # Mount the volume
       volume_mounts {
         name       = "hf-cache"
-        mount_path = "/workspace/.cache/huggingface"
+        mount_path = "/workspace"
       }
 
       # Resource limits (adjust)
@@ -236,14 +257,16 @@ resource "google_cloud_run_v2_service" "service" {
           cpu              = var.diagnosis_summary.cpu_limit
           "nvidia.com/gpu" = "1"
         }
+        startup_cpu_boost = true
       }
-
     }
     # Autoscaling
     scaling {
       min_instance_count = var.diagnosis_summary.min_instances
       max_instance_count = var.diagnosis_summary.max_instances
     }
+    timeout = "1200s"
+
   }
 
   traffic {
