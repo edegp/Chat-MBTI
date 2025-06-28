@@ -18,6 +18,7 @@ dependencies = [
     "google-cloud-storage (>=3.1.1,<4.0.0)",
     "gcsfs>=2025.3.0",
     "bitsandbytes>=0.46.0 ; sys_platform == 'linux'",
+    "vllm>=0.8.5.post1 ; sys_platform == 'linux'",
     "transformers[sentencepiece,torch]>=4.52.4",
 ]
 

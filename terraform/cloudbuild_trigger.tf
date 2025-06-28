@@ -31,6 +31,18 @@ resource "google_project_iam_member" "cloud_build_sa_run_admin" {
   member  = "serviceAccount:${google_service_account.cloud_build_sa.email}"
 }
 
+# Allow Cloud Build service account to actAs the Cloud Run service account
+resource "google_service_account_iam_member" "allow_build_act_as_run_sa" {
+  service_account_id = google_service_account.cloud_run_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.cloud_build_sa.email}"
+}
+resource "google_project_iam_member" "cloudbuild_sa_actas_any" {
+  project = var.project_id
+  role    = "roles/iam.serviceAccountUser" # iam.serviceAccounts.actAs を含む
+  member  = "serviceAccount:${google_service_account.cloud_build_sa.email}"
+}
+
 resource "google_cloudbuild_trigger" "mbti-diagnosis-chat-github-trigger" {
   name = "mbti-diagnosis-chat-github-trigger"
 

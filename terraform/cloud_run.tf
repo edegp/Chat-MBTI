@@ -34,12 +34,7 @@ resource "google_storage_bucket_iam_member" "cloud_run_sa_storage_legacy_bucket_
   member = "serviceAccount:${google_service_account.cloud_run_sa.email}"
 }
 
-# Allow Cloud Build service account to actAs the Cloud Run service account
-resource "google_service_account_iam_member" "allow_build_act_as_run_sa" {
-  service_account_id = google_service_account.cloud_run_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.cloud_build_sa.email}"
-}
+
 
 resource "google_cloud_run_v2_service" "main" {
   name     = var.diagnosis_chat.name
@@ -266,7 +261,10 @@ resource "google_cloud_run_v2_service" "service" {
       max_instance_count = var.diagnosis_summary.max_instances
     }
     timeout = "1200s"
-
+    labels = {
+      # 必要に応じてラベルを追加
+      "managed-by" = "gcp-cloud-build-deploy-cloud-run"
+    }
   }
 
   traffic {

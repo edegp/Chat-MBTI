@@ -6,7 +6,7 @@ import os
 import asyncio
 
 # from main import judge_and_make_report
-from . import main
+from main import judge_and_make_report
 from . import utils
 from logging import getLogger
 
@@ -29,6 +29,53 @@ class StreamResponse(BaseModel):
     gemma_judge: str
     gemma_success: bool
 
+@app.post("/generate-report-stream-batch")
+async def judge_and_make_report_app(request: ReportRequest):
+    async def stream_generator():
+        phase_df = utils.read_csv_from_gcs(request.data_path, encoding="utf-8")
+        messages_list = utils.make_judge_input_list(phase_df)
+        element_list = ["energy", "mind", "nature", "tactics"]
+
+        # ---------- ターン 1: Processor を全部作る ----------
+        processors = [
+            judge_and_make_report(
+                messages=messages_list[i],
+                element=el,
+                config_path="config.yaml",
+            )
+            for i, el in enumerate(element_list)
+        ]
+
+        # ---------- ターン 2: Gemma をバッチ推論 ----------
+        try:
+            gemma_success_flags = judge_and_make_report.gemma_judge_batch(processors)
+        except Exception as e:
+            logger.error(f"Batch Gemma failed: {e}")
+            gemma_success_flags = [False] * len(processors)
+
+        # ---------- ターン 3: Gemini フォールバック → レポート生成 ----------
+        for proc, ok in zip(processors, gemma_success_flags):
+            try:
+                # フォールバック
+                if not ok:
+                    proc.gemini_judge()
+                # レポート
+                report = proc.make_report()
+
+                response_chunk = StreamResponse(
+                    element=proc.element_name,
+                    report=report,
+                    gemma_judge=proc.judge,
+                    gemma_success=ok,
+                ).model_dump_json()
+
+                yield response_chunk + "\n"
+                await asyncio.sleep(0)
+
+            except Exception as e:
+                logger.error(f"Error on {proc.element_name}: {e}")
+                yield '{"error": "処理中に問題が発生しました"}'
+    return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
 @app.post("/generate-report-stream")
 async def judge_and_make_report_app(request: ReportRequest):
@@ -52,7 +99,7 @@ async def judge_and_make_report_app(request: ReportRequest):
 
         for i, element in enumerate(element_list):
             try:
-                processor = main.judge_and_make_report(
+                processor = judge_and_make_report(
                     messages=messages_list[i],
                     element=element,
                     config_path="config.yaml",
