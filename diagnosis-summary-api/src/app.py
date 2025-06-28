@@ -6,7 +6,7 @@ import os
 import asyncio
 
 # from main import judge_and_make_report
-from main import judge_and_make_report
+from .main import judge_and_make_report
 from . import utils
 from logging import getLogger
 
