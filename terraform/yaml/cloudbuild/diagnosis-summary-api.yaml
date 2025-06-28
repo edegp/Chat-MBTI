@@ -5,23 +5,19 @@ steps:
     args:
       - -ceu
       - |
-        # ==== 変数 ====
-        IMAGE="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}"
-        CACHE_IMAGE="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:buildcache"
+        # --- Cloud Build の置換対象になる部分（$_VAR や $COMMIT_SHA 等）はそのまま ---
+        image="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}"
+        cache_image="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:buildcache"
 
-        # ==== BuildKit ビルド ====
+        # --- image / cache_image はローカル変数なので $ をエスケープ ---
         buildctl-daemonless.sh build \
           --frontend dockerfile.v0 \
           --local context=./diagnosis-summary-api \
           --local dockerfile=./diagnosis-summary-api \
           --opt filename=diagnosis-summary-api/Dockerfile \
-          \
-          # --- 出力先（push 付き）---
-          --output type=image,name="${IMAGE}",push=true \
-          \
-          # --- キャッシュ設定 ---
-          --import-cache type=registry,ref="$CACHE_IMAGE" \
-          --export-cache type=registry,ref="$CACHE_IMAGE",mode=max
+          --output "type=image,name=$${image},push=true" \
+          --import-cache "type=registry,ref=$${cache_image}" \
+          --export-cache "type=registry,ref=$${cache_image},mode=max"
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
       - run
