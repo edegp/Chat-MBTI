@@ -176,7 +176,7 @@ resource "google_storage_bucket" "fuse_bucket" {
   force_destroy               = true
 
   labels = {
-    managed_by = "gcp-cloud-build-deploy-cloud-run"
+    managed_by = "gcp-cloud-build-deploy-chat-api"
   }
 }
 
@@ -263,7 +263,7 @@ resource "google_cloud_run_v2_service" "service" {
     timeout = "1200s"
     labels = {
       # 必要に応じてラベルを追加
-      "managed-by" = "gcp-cloud-build-deploy-cloud-run"
+      "managed-by" = "gcp-cloud-build-deploy-summary-api"
     }
   }
 

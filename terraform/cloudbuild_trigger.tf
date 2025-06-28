@@ -98,7 +98,7 @@ resource "google_cloudbuild_trigger" "mbti-diagnosis-summary-github-trigger" {
     _AR_PROJECT_ID = var.project_id
     _AR_REPOSITORY = var.ar_repository
     _SERVICE_NAME  = var.diagnosis_summary.name
-    _DEPLOY_REGION = var.region
+    _DEPLOY_REGION = "asia-southeast1"
     _CACHE_TAG     = "latest"
     REPO_NAME      = lower(var.diagnosis_summary.github.repo)
   }

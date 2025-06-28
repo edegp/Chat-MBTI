@@ -1,12 +1,12 @@
 steps:
   - name: gcr.io/cloud-builders/docker
-    env: ["DOCKER_BUILDKIT=1"]
+    env: ['DOCKER_BUILDKIT=1']
     args:
       - build
-      - "--no-cache"
-      - "-t"
+      - '--no-cache'
+      - '-t'
       - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - "-f"
+      - '-f'
       - diagnosis-chat-api/Dockerfile
       - diagnosis-chat-api
     id: Build
@@ -15,17 +15,17 @@ steps:
       - push
       - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
     id: Push
-  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
       - run
       - services
       - update
       - $_SERVICE_NAME
-      - "--platform=managed"
+      - '--platform=managed'
       - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
-      - "--region=$_DEPLOY_REGION"
-      - "--quiet"
+      - --labels=managed-by=gcp-cloud-build-deploy-chat-api,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
+      - '--region=$_DEPLOY_REGION'
+      - '--quiet'
     id: Deploy
     entrypoint: gcloud
 images:
