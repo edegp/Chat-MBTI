@@ -1,12 +1,27 @@
 steps:
-  - name: gcr.io/kaniko-project/executor:latest
-    args:
-      - --destination=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - --dockerfile=diagnosis-summary-api/Dockerfile
-      - --context=dir://diagnosis-summary-api
-      - --cache=true
-      - --cache-ttl=240h
+  - name: moby/buildkit:rootless
     id: Build
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        # ==== 変数 ====
+        IMAGE="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}"
+        CACHE_IMAGE="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:buildcache"
+
+        # ==== BuildKit ビルド ====
+        buildctl-daemonless.sh build \
+          --frontend dockerfile.v0 \
+          --local context=./diagnosis-summary-api \
+          --local dockerfile=./diagnosis-summary-api \
+          --opt filename=diagnosis-summary-api/Dockerfile \
+          \
+          # --- 出力先（push 付き）---
+          --output type=image,name="${IMAGE}",push=true \
+          \
+          # --- キャッシュ設定 ---
+          --import-cache type=registry,ref="$CACHE_IMAGE" \
+          --export-cache type=registry,ref="$CACHE_IMAGE",mode=max
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
       - run

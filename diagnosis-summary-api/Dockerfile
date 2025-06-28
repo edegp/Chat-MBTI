@@ -20,7 +20,6 @@ RUN --mount=from=ghcr.io/astral-sh/uv,source=/uv,target=/bin/uv \
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV HF_HOME=/workspace/.cache/huggingface
-ENV HF_ENDPOINT=https://hf-mirror.com
 
 # mount
 
