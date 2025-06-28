@@ -9,14 +9,17 @@ steps:
   - name: gcr.io/cloud-builders/docker
     env: ['DOCKER_BUILDKIT=1']
     args:
-      - build
-      - '-t'
-      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - '--cache-from'
-      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
-      - '-f'
-      - diagnosis-summary-api/Dockerfile
-      - diagnosis-summary-api
+      - -ceu
+      - |
+        CACHE_IMAGE=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$_CACHE_TAG
+        IMAGE=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+        docker build \
+        --cache-from=$CACHE_IMAGE \
+        -t=$IMAGE \
+        -f=diagnosis-summary-api/Dockerfile \
+        diagnosis-summary-api
+
+        docker tag $IMAGE $_CACHE_IMAGE
     id: Build
   - name: gcr.io/cloud-builders/docker
     args:
