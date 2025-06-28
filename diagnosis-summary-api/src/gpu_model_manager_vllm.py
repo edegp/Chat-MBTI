@@ -6,6 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 # vLLM は高速推論エンジン。GPU が無い場合は自動的に transformers にフォールバックします。
 try:
     from vllm import LLM, SamplingParams
+
     _VLLM_AVAILABLE = True
 except ImportError:
     _VLLM_AVAILABLE = False  # ランタイムに vllm が入っていない場合も考慮
@@ -73,6 +74,9 @@ class GPUModelManager:
                     gpu_memory_utilization=gpu_memory_utilization,
                     quantization=quantization,
                     trust_remote_code=True,
+                    hf_overrides={
+                        "local_files_only": True,
+                    },
                 )
                 self.tokenizer = self.llm.get_tokenizer()
 
@@ -83,10 +87,10 @@ class GPUModelManager:
                 )
 
                 quant_config = BitsAndBytesConfig(
-                   load_in_4bit=True,
-                   bnb_4bit_quant_type="nf4",
-                   bnb_4bit_compute_dtype=torch.bfloat16,
-                   bnb_4bit_use_double_quant=use_double_quant,
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_use_double_quant=use_double_quant,
                 )
 
                 self.model = AutoModelForCausalLM.from_pretrained(
@@ -136,7 +140,9 @@ class GPUModelManager:
             return outputs[0].outputs[0].text
 
         # ----------- transformers パス (CPU) -----------
-        assert self.model is not None and self.tokenizer is not None, "CPU fallback should have model/tokenizer"
+        assert (
+            self.model is not None and self.tokenizer is not None
+        ), "CPU fallback should have model/tokenizer"
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
         with torch.no_grad():
