@@ -1,23 +1,27 @@
 steps:
-  - name: moby/buildkit:rootless
-    id: Build
-    entrypoint: sh
+  # Pull the cached docker image
+  - name: gcr.io/cloud-builders/docker
     args:
-      - -ceu
-      - |
-        # --- Cloud Build の置換対象になる部分（$_VAR や $COMMIT_SHA 等）はそのまま ---
-        image="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:${COMMIT_SHA}"
-        cache_image="${_AR_HOSTNAME}/${_AR_PROJECT_ID}/${_AR_REPOSITORY}/${REPO_NAME}/${_SERVICE_NAME}:buildcache"
-
-        # --- image / cache_image はローカル変数なので $ をエスケープ ---
-        buildctl-daemonless.sh build \
-          --frontend dockerfile.v0 \
-          --local context=./diagnosis-summary-api \
-          --local dockerfile=./diagnosis-summary-api \
-          --opt filename=diagnosis-summary-api/Dockerfile \
-          --output "type=image,name=$${image},push=true" \
-          --import-cache "type=registry,ref=$${cache_image}" \
-          --export-cache "type=registry,ref=$${cache_image},mode=max"
+      - pull
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+    id: Pull
+  - name: gcr.io/cloud-builders/docker
+    env: ['DOCKER_BUILDKIT=1']
+    args:
+      - build
+      - '-t'
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - '--cache-from'
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - '-f'
+      - diagnosis-summary-api/Dockerfile
+      - diagnosis-summary-api
+    id: Build
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+    id: Push
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
     args:
       - run
@@ -28,7 +32,6 @@ steps:
       - --image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
       - --labels=managed-by=gcp-cloud-build-deploy-cloud-run,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID,gcb-trigger-id=$_TRIGGER_ID
       - '--region=$_DEPLOY_REGION'
-      - '--port=10000'
       - '--quiet'
     id: Deploy
     entrypoint: gcloud
