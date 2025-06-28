@@ -59,11 +59,12 @@ async def judge_and_make_report_app(request: ReportRequest):
                 )
                 # 1. judge by gemma
                 print("Attempting judgment with Gemma...")
-                processor.gemma_judge()
+                is_success_gemma_judge = processor.gemma_judge()
 
                 # 2. judge by gemma (if gemma judge return error)
-                print("Executing Gemini fallback judgment if needed...")
-                processor.gemini_judge()
+                if is_success_gemma_judge:
+                    print("Executing Gemini fallback judgment if needed...")
+                    processor.gemini_judge()
 
                 # 3. make report
                 print("Generating final report...")

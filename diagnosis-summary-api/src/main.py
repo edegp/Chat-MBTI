@@ -47,7 +47,6 @@ class GPUModelManager:
             # トークナイザーの読み込み
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_name,
-                cache_dir="/workspace",
                 local_files_only=True,
             )
 
@@ -65,7 +64,6 @@ class GPUModelManager:
                     torch_dtype=torch.bfloat16,
                     quantization_config=quantization_config,
                     device_map="auto",
-                    cache_dir="/workspace",
                     local_files_only=True,
                     low_cpu_mem_usage=True,
                 )
@@ -172,16 +170,14 @@ class judge_and_make_report:
 
             if not follow_format:
                 logger.warning(f"Response does not follow format: {format_error}")
-                self.gemma_judge_success_flag = False
-
+                return False
+            return True
         except Exception as e:
             logger.error(f"[gemma_judge] Error during model inference: {e}")
-            self.gemma_judge_success_flag = False
+            return False
 
     def gemini_judge(self, message_max_length=2000):
         """Gemini推論（フォールバック）"""
-        if self.gemma_judge_success_flag:
-            return
 
         prompt = utils.preprocess(
             self.messages,
