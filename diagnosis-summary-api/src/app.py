@@ -51,14 +51,16 @@ async def generate_report_stream(request: ReportRequest):
         ]
 
         # --- 2) Gemma を 1 バッチ推論（非同期オフロード）---
-        gemma_flags = await judge_and_make_report.gemma_judge_batch_async(processors)
+        judges, gemma_flags = await judge_and_make_report.gemma_judge_batch_async(
+            processors
+        )
         # gemma_flags[i] == True ならフォーマット OK
 
         # --- 3) Gemini フォールバック + レポートを並列実行 ---
-        async def post_process(proc, ok):
+        async def post_process(proc, judge, ok):
             if not ok:
                 await proc.gemini_judge_async()
-            report, pred = await proc.make_report_async()
+            report, pred = await proc.make_report_async(judge, ok)
             return dict(
                 element=proc.element_name,
                 report=report,
@@ -68,8 +70,8 @@ async def generate_report_stream(request: ReportRequest):
             )
 
         tasks = [
-            asyncio.create_task(post_process(p, ok))
-            for p, ok in zip(processors, gemma_flags)
+            asyncio.create_task(post_process(p, judge, ok))
+            for p, judge, ok in zip(processors, judges, gemma_flags)
         ]
 
         # --- 4) ストリーム送信 ---

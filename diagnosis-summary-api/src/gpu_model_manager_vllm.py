@@ -4,8 +4,11 @@ from typing import Optional, Dict
 from logging import getLogger
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from concurrent.futures import ThreadPoolExecutor
+from transformers.integrations.bitsandbytes import validate_bnb_backend_availability
 
 logger = getLogger(__name__)
+
+validate_bnb_backend_availability(raise_exception=True)
 
 
 class GPUModelManager:
@@ -53,17 +56,15 @@ class GPUModelManager:
 
             if self.device == "cuda":
                 # GPU用量子化設定
-                quantization_config = BitsAndBytesConfig(
-                    load_in_4bit=True,
-                    bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.bfloat16,
-                    bnb_4bit_use_double_quant=use_double_quant,  # 設定可能
-                )
-
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_name,
                     torch_dtype=torch.bfloat16,
-                    quantization_config=quantization_config,
+                    quantization_config=BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.bfloat16,
+                        bnb_4bit_use_double_quant=use_double_quant,  # 設定可能
+                    ),
                     device_map="auto",
                     local_files_only=True,
                     low_cpu_mem_usage=True,

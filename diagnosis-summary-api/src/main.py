@@ -77,7 +77,7 @@ class judge_and_make_report:
             if not ok:
                 logger.warning(f"{p.element_name}: format error: {err}")
             success_flags.append(ok)
-        return p.judge, success_flags
+        return [p.judge for p in processors], success_flags
 
     def gemma_judge(self, message_max_length=2000):
         """GPU最適化されたGemma推論"""
