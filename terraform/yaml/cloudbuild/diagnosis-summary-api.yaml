@@ -3,7 +3,8 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - pull
-      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA
+      - $_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$_CACHE_TAG
+    allowFailure: true
     id: Pull
   - name: gcr.io/cloud-builders/docker
     env: ['DOCKER_BUILDKIT=1']
