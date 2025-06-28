@@ -1,7 +1,9 @@
+import asyncio
+import torch
 from typing import Optional, Dict
 from logging import getLogger
-import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from concurrent.futures import ThreadPoolExecutor
 
 logger = getLogger(__name__)
 
@@ -10,6 +12,14 @@ class GPUModelManager:
     """GPU最適化されたモデル管理クラス（シングルトンパターン）"""
 
     _instances: Dict[str, "GPUModelManager"] = {}
+    _executor = ThreadPoolExecutor(max_workers=4)  # ★共有スレッドプール
+    _semaphore: asyncio.Semaphore | None = None
+
+    @classmethod
+    def _get_semaphore(cls) -> asyncio.Semaphore:
+        if cls._semaphore is None:
+            cls._semaphore = asyncio.Semaphore(4)
+        return cls._semaphore
 
     def __new__(cls, model_name: str):
         if model_name not in cls._instances:
@@ -105,3 +115,38 @@ class GPUModelManager:
         response = self.tokenizer.decode(new_tokens, skip_special_tokens=False)
 
         return response
+
+    def _generate_sync(
+        self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.1
+    ) -> str:
+        if self.model is None or self.tokenizer is None:
+            raise RuntimeError("Model not loaded")
+
+        with torch.inference_mode():
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                do_sample=temperature > 0,
+                pad_token_id=self.tokenizer.eos_token_id,
+                use_cache=True,
+            )
+            resp = self.tokenizer.decode(
+                outputs[0, inputs["input_ids"].shape[-1] :], skip_special_tokens=True
+            )
+        return resp
+
+    # ★★ 非同期ラッパ ★★
+    async def generate_async(
+        self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.1
+    ) -> str:
+        async with self._get_semaphore():
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(
+                self._executor,
+                self._generate_sync,
+                prompt,
+                max_new_tokens,
+                temperature,
+            )
