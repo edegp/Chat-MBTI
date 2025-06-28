@@ -1,15 +1,19 @@
+import os
 import socket
 import logging
-from typing import Union
+import sys
+import traceback
+from typing import Union, Generator, Optional, Any
+from contextlib import contextmanager
+
+# Import psycopg3 instead of psycopg
+import psycopg
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.memory import MemorySaver
-from contextlib import _GeneratorContextManager
-import psycopg2
-import psycopg2.extras
-import os
 from urllib.parse import quote_plus
-import psycopg2.pool
-from contextlib import contextmanager
 
 from src.exceptions import (
     ConnectionError,
@@ -83,8 +87,6 @@ CREATE INDEX IF NOT EXISTS user_answers_session_x ON user_answers(question_id);
 
 """
 
-# UUIDアダプターを登録（ファイルの先頭に追加）
-psycopg2.extras.register_uuid()
 SQL_CONNECTION_NAME = os.getenv("SQL_CONNECTION_NAME")
 DB_SOCKET_PATH = f"/cloudsql/{SQL_CONNECTION_NAME}"
 # Environment variables for secure DB user management
@@ -142,49 +144,93 @@ def get_dsn() -> str:
 DB_URI = get_dsn()
 
 
-def init_postgres(dsn: str = DB_URI):
-    """スキーマを作成する（idempotent）。"""
-    if SQL_CONNECTION_NAME is None and not os.getenv("DB_HOST"):
+def get_connection_pool() -> ConnectionPool:
+    """シングルトンコネクションプールを取得または作成"""
+    global _connection_pool
+    if _connection_pool is None:
         try:
-            # Connect as superuser to set up local app user
-            with psycopg2.connect(dsn) as admin_conn:
-                with admin_conn.cursor() as cur_admin:
-                    cur_admin.execute(
-                        """DO
-                        $$
-                        BEGIN
-                        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '%s') THEN
-                            CREATE ROLE postgres LOGIN PASSWORD %s;
-                        END IF;
-                        END
-                        $$;""",
-                        (
-                            APP_DB_USER,
-                            APP_DB_PASS,
-                        ),
-                    )
-                    cur_admin.execute(
-                        f"GRANT CONNECT ON DATABASE {os.getenv('DB_NAME', 'diagnosis_ai')} TO {APP_DB_USER};"
-                    )
-                    cur_admin.execute(f"GRANT USAGE ON SCHEMA public TO {APP_DB_USER};")
-                    cur_admin.execute(
-                        f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {APP_DB_USER};"
-                    )
-                    cur_admin.execute(
-                        f"ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO {APP_DB_USER};"
-                    )
+            # psycopg3 connection poolの作成
+            _connection_pool = ConnectionPool(
+                conninfo=DB_URI,
+                min_size=3,
+                max_size=20,
+                # kwargs={"row_factory": dict_row},
+            )
+            logger.info("DB connection pool initialized with min=3, max=20 connections")
         except Exception as e:
-            logger.warning(
-                "Local DB user setup skipped or failed", extra={"error": str(e)}
+            logger.error(f"Failed to create connection pool: {str(e)}")
+            raise
+    return _connection_pool
+
+
+@contextmanager
+def get_db_connection() -> Generator[psycopg.Connection, None, None]:
+    """接続を安全に取得して返却するコンテキストマネージャー"""
+    pool = get_connection_pool()
+    conn = None
+    try:
+        # psycopg3でpoolから接続を取得
+        conn = pool.getconn()
+        # 自動コミット無効化
+        conn.autocommit = False
+        yield conn
+    except Exception as e:
+        logger.error(f"Connection error: {str(e)}")
+        traceback.print_exc()
+        if conn:
+            try:
+                conn.rollback()
+            except Exception as rollback_error:
+                logger.error(f"Rollback error: {str(rollback_error)}")
+        raise ConnectionError(f"Database connection error: {str(e)}")
+    finally:
+        if conn:
+            try:
+                # 例外が発生していなければコミット
+                if sys.exc_info()[0] is None:
+                    conn.commit()
+                # 接続をプールに返却
+                pool.putconn(conn)
+            except Exception as e:
+                logger.error(f"Error returning connection to pool: {str(e)}")
+
+
+def init_postgres(dsn: str = DB_URI) -> None:
+    """Initialize PostgreSQL schema and extensions."""
+    try:
+        logger.info("Initializing PostgreSQL schema")
+
+        # Connect with psycopg3
+        conn = psycopg.connect(dsn)
+        conn.autocommit = True
+
+        with conn.cursor() as cur:
+            # Create extensions
+            cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";')
+
+            # For role management, avoid parameter substitution in DO blocks
+            # Instead, use format or interpolate values directly
+            db_user = os.environ.get("POSTGRES_USER", "postgres")
+            db_password = os.environ.get("POSTGRES_PASSWORD", "postgres")
+
+            # Create role if needed - properly escape identifiers and literals
+            cur.execute(
+                f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{db_user}') THEN
+                        EXECUTE format('CREATE ROLE %I LOGIN PASSWORD %L', '{db_user}', '{db_password}');
+                    END IF;
+                END
+                $$;
+                """
             )
 
-    try:
-        with psycopg2.connect(dsn) as conn:
-            with conn.cursor() as cur:
-                cur.execute(SCHEMA_SQL)
-                conn.commit()
-        logger.info("PostgreSQL schema initialization completed successfully")
-    except psycopg2.Error as e:
+            # Create tables
+            cur.execute(SCHEMA_SQL)
+
+            logger.info("PostgreSQL schema initialized successfully")
+    except psycopg.Error as e:
         error = ConnectionError(
             "Failed to initialize PostgreSQL schema",
             {"dsn": dsn, "error_code": e.pgcode, "error_message": str(e)},
@@ -198,59 +244,23 @@ def init_postgres(dsn: str = DB_URI):
         )
         error.log_error(logger)
         raise error
+    finally:
+        if "conn" in locals() and conn:
+            conn.close()
 
 
-def create_checkpointer() -> (
-    Union[_GeneratorContextManager[PostgresSaver], MemorySaver]
-):
+@contextmanager
+def create_checkpointer() -> Union[Generator[PostgresSaver, None, None], MemorySaver]:
     """Generate PostgresSaver from DB_CONNECTION_STRINGget_session_by_user_id. Tables are created automatically on first run."""
     try:
-        checkpointer = PostgresSaver.from_conn_string(DB_URI)
-        return checkpointer
+        with get_db_connection() as conn:
+            yield PostgresSaver(conn)
     except Exception as e:
         logger.warning(
             "PostgreSQL connection failed, falling back to memory checkpointer",
             extra={"error": str(e), "db_uri": DB_URI},
         )
         return MemorySaver()
-
-
-def get_connection_pool():
-    """シングルトンコネクションプールを取得または作成"""
-    global _connection_pool
-    if _connection_pool is None:
-        # 最小10、最大30接続のプール作成
-        _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=3, maxconn=20, dsn=get_dsn()
-        )
-        logger.info("DB connection pool initialized with min=5, max=20 connections")
-    return _connection_pool
-
-
-@contextmanager
-def get_db_connection():
-    """接続を安全に取得して返却するコンテキストマネージャー"""
-    pool = get_connection_pool()
-    conn = None
-    try:
-        conn = pool.getconn()
-        conn.autocommit = False  # トランザクション制御を明示的に行う
-        yield conn
-    except Exception as e:
-        logger.error(f"Connection error: {str(e)}")
-        if conn:
-            try:
-                conn.rollback()  # エラー時にロールバック
-            except:
-                pass
-        raise ConnectionError("Database connection error", {"error": str(e)})
-    finally:
-        if conn:
-            try:
-                pool.putconn(conn)
-                logger.debug("Connection returned to pool")
-            except Exception as e:
-                logger.error(f"Error returning connection to pool: {str(e)}")
 
 
 # 接続のラップ用の共通ベースクラス
@@ -307,7 +317,7 @@ class ChatSessionDriver(BaseDBDriver):
                     conn.commit()
                     return str(user_id)
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             if conn:
                 conn.rollback()
             error = QueryError(
@@ -357,7 +367,7 @@ class ChatSessionDriver(BaseDBDriver):
 
                     return session_id
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             error = QueryError(
                 "Failed to get session by user ID",
                 {
@@ -387,7 +397,7 @@ class ChatSessionDriver(BaseDBDriver):
                         extra={"session_id": str(session_id), "user_id": user_id},
                     )
                     return str(session_id)
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             if conn:
                 conn.rollback()
             error = QueryError(
@@ -418,7 +428,7 @@ class ChatSessionDriver(BaseDBDriver):
 
         except SessionNotFoundError:
             raise  # Re-raise the custom exception
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             if conn:
                 conn.rollback()
             error = QueryError(
@@ -470,7 +480,7 @@ class GeneratedQuestionDriver(BaseDBDriver):
                     conn.commit()
                     return question_id
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             if conn:
                 conn.rollback()
             error = QueryError(
@@ -510,7 +520,7 @@ class GeneratedQuestionDriver(BaseDBDriver):
 
                     return question_id
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             error = QueryError(
                 "Failed to get question ID",
                 {
@@ -542,7 +552,7 @@ class UserAnswerDriver(BaseDBDriver):
             )
             return True
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             if conn:
                 conn.rollback()
             error = QueryError(
@@ -580,7 +590,7 @@ class QuestionOptionsDriver(BaseDBDriver):
                 },
             )
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             if conn:
                 conn.rollback()
             error = QueryError(
@@ -614,7 +624,7 @@ class QuestionOptionsDriver(BaseDBDriver):
             )
             return options
 
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             error = QueryError(
                 "Failed to get question options",
                 {
