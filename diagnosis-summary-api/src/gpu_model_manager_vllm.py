@@ -73,7 +73,6 @@ class GPUModelManager:
                     dtype=dtype,
                     gpu_memory_utilization=gpu_memory_utilization,
                     quantization=quantization,
-                    trust_remote_code=True,
                     hf_overrides={
                         "local_files_only": True,
                     },
