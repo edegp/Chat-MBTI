@@ -5,7 +5,7 @@ without dependencies on external frameworks or infrastructure.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from langchain_core.messages import RemoveMessage
 
 from ..port.ports import (
@@ -14,12 +14,9 @@ from ..port.ports import (
     SessionRepositoryPort,
     ElementRepositoryPort,
 )
-from .type import Message
-
 from .data_collection_service import DataCollectionService
 from ..exceptions import (
     SessionNotFoundError,
-    SessionError,
     AssessmentError,
     AssessmentIncompleteError,
     InvalidResponseError,

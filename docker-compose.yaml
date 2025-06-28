@@ -103,5 +103,18 @@ services:
       - '5432:5432'
     restart: unless-stopped
 
+  db-monitor:
+    image: postgres:15
+    volumes:
+      - ./scripts/db-monitor.sh:/app/db-monitor.sh
+    depends_on:
+      - db
+    environment:
+      - PGHOST=db
+      - PGUSER=postgres
+      - PGPASSWORD=postgres
+      - PGDATABASE=diagnosis_ai
+    command: >
+      bash /app/db-monitor.sh
 volumes:
   postgres_data:
