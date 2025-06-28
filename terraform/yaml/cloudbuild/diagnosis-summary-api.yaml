@@ -11,9 +11,9 @@ steps:
     args:
       - build
       - --cache-from=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$_CACHE_TAG
-      - -t=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$COMMIT_SHA
-      - -t=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$_CACHE_TAG
-      - -f=diagnosis-summary-api/Dockerfile
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$COMMIT_SHA
+      - --tag=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME- $_SERVICE_NAME:$_CACHE_TAG
+      - --file=diagnosis-summary-api/Dockerfile
       - diagnosis-summary-api
     id: Build
   - name: gcr.io/cloud-builders/docker
