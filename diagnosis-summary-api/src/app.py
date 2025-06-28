@@ -29,6 +29,7 @@ class StreamResponse(BaseModel):
     gemma_judge: str
     gemma_success: bool
 
+
 @app.post("/generate-report-stream-batch")
 async def judge_and_make_report_app(request: ReportRequest):
     async def stream_generator():
@@ -75,7 +76,9 @@ async def judge_and_make_report_app(request: ReportRequest):
             except Exception as e:
                 logger.error(f"Error on {proc.element_name}: {e}")
                 yield '{"error": "処理中に問題が発生しました"}'
+
     return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
+
 
 @app.post("/generate-report-stream")
 async def judge_and_make_report_app(request: ReportRequest):
@@ -96,6 +99,7 @@ async def judge_and_make_report_app(request: ReportRequest):
 
         element_list = ["energy", "mind", "nature", "tactics"]
         report_list = []
+        pred_labels = []
 
         for i, element in enumerate(element_list):
             try:
@@ -119,14 +123,16 @@ async def judge_and_make_report_app(request: ReportRequest):
 
                 # 3. make report
                 print("Generating final report...")
-                report = processor.make_report()
+                report, pred_label = processor.make_report()
                 report_list.append(report)
-                print(report)
+                pred_labels.append(pred_label)
+                print(report, pred_label)
 
                 # return the resonse
                 response_chunk = StreamResponse(
                     element=element,
                     report=report,
+                    pred_label=pred_label,
                     gemma_judge=processor.judge,
                     gemma_success=is_success_gemma_judge,
                 ).model_dump_json()

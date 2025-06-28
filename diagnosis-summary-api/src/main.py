@@ -1,3 +1,4 @@
+import re
 from typing import List
 from . import utils
 
@@ -8,6 +9,7 @@ from logging import getLogger
 from .gpu_model_manager_vllm import GPUModelManager
 
 logger = getLogger(__name__)
+
 
 class judge_and_make_report:
     def __init__(self, messages, element, config_path):
@@ -110,7 +112,6 @@ class judge_and_make_report:
             logger.error(f"[gemma_judge] Error during model inference: {e}")
             return False
 
-
     def gemini_judge(self, message_max_length=2000):
         """Gemini推論（フォールバック）"""
 
@@ -129,15 +130,33 @@ class judge_and_make_report:
             logger.error(f"[gemini_judge] Error during API call: {e}")
             raise
 
-    def make_report(self):
+    def make_report(self, judge, is_success_gemma_judge: bool = True) -> str:
         """レポート生成"""
 
         prompt = utils.make_report_prompt(self.element_name, self.messages, self.judge)
 
         try:
             report = self.llm.invoke(prompt)
-            self.report = report.content
-            return self.report
+            report = report.content
+            judge_pattern = re.compile(r"(?<=\[judge\])([A-Za-z])")
+
+            # geminiの判定が正しいフォーマットに従っている場合
+            try:
+                m = judge_pattern.search(judge)
+                pred_label = m.group(1)
+
+            # geminiの判定が正しいフォーマットに従っていない場合
+            except Exception:
+                pred_label = self.true_labels[0]  # デフォルトの予測ラベルを設定
+                first_match = len(judge) + 1
+
+                for label in self.true_labels:
+                    match = judge.find(label)
+                    if match != -1 and match < first_match:
+                        first_match = match
+                        pred_label = label
+
+            return report, pred_label
         except Exception as e:
             logger.error(f"[make_report] Error during report generation: {e}")
             raise
