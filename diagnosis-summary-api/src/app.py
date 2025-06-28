@@ -58,8 +58,12 @@ async def judge_and_make_report_app(request: ReportRequest):
                     config_path="config.yaml",
                 )
                 # 1. judge by gemma
-                print("Attempting judgment with Gemma...")
-                is_success_gemma_judge = processor.gemma_judge()
+                try:
+                    print("Attempting judgment with Gemma...")
+                    is_success_gemma_judge = processor.gemma_judge()
+                except Exception as e:
+                    logger.error(f"Gemma judgment failed for {element}: {e}")
+                    is_success_gemma_judge = False
 
                 # 2. judge by gemma (if gemma judge return error)
                 if is_success_gemma_judge:

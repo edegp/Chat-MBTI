@@ -101,6 +101,7 @@ class GPUModelManager:
         with torch.no_grad():
             generated_tokens = self.model.generate(
                 input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 do_sample=temperature > 0,
@@ -125,7 +126,6 @@ class judge_and_make_report:
         self.true_labels = self.config[element]["true_labels"]
 
         self.messages = messages
-        self.gemma_judge_success_flag = True
 
         # シングルトンパターンでモデル管理
         self.model_manager = GPUModelManager(self.model_name)
@@ -161,7 +161,7 @@ class judge_and_make_report:
             response = self.model_manager.generate(prompt)
             response = utils.remove_special_token(response)
 
-            self.gemma_judge = response
+            self.judge = response
 
             # フォーマット検証
             follow_format, format_error = utils.judge_response_follow_format(
@@ -189,19 +189,15 @@ class judge_and_make_report:
 
         try:
             judge = self.llm.invoke(prompt)
-            self.gemini_judge = judge.content
+            self.judge = judge.content
         except Exception as e:
             logger.error(f"[gemini_judge] Error during API call: {e}")
             raise
 
     def make_report(self):
         """レポート生成"""
-        if self.gemma_judge_success_flag:
-            judge = self.gemma_judge
-        else:
-            judge = self.gemini_judge
 
-        prompt = utils.make_report_prompt(self.element_name, self.messages, judge)
+        prompt = utils.make_report_prompt(self.element_name, self.messages, self.judge)
 
         try:
             report = self.llm.invoke(prompt)
