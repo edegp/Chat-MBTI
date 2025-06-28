@@ -35,64 +35,52 @@ class StreamResponse(BaseModel):
 @app.post("/generate-report-stream-batch")
 async def generate_report_stream(request: ReportRequest):
     async def stream_generator():
-        # --- 前処理 ---
+        # --- 0) 前処理 ---
         phase_df = utils.read_csv_from_gcs(request.data_path, encoding="utf-8")
-        messages_list = utils.make_judge_input_list(phase_df)
         element_list = ["energy", "mind", "nature", "tactics"]
+        messages_list = utils.make_judge_input_list(phase_df)
 
-        # --- 個別処理を 1 タスクにまとめる ---
-        async def process_one(idx: int, element: str):
-            """
-            i)   Gemma judge
-            ii)  Gemini fallback（必要なとき）
-            iii) Report 生成
-            戻り値: dict を返し、エラーなら raise
-            """
-            proc = judge_and_make_report(
-                messages=messages_list[idx],
+        # --- 1) Processor 生成（4 個固定） ---
+        processors = [
+            judge_and_make_report(
+                messages=messages_list[i],
                 element=element,
                 config_path="config.yaml",
             )
-
-            # 1) Gemma 判定（同期コード → スレッドオフロード）
-            judge, ok = await proc.gemma_judge_batch_async()
-
-            # 2) Gemini フォールバック
-            if not ok:
-                judge = await proc.gemini_judge_async()
-
-            if judge is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Gemini judge failed for element: {element}",
-                )
-
-            report, pred_label = await proc.make_report_async(judge, ok)
-
-            return {
-                "element": proc.element_name,
-                "report": report,
-                "pred_label": pred_label,
-                "gemma_judge": proc.judge,
-                "gemma_success": ok,
-            }
-
-        # --- タスクを起動 ---
-        tasks = [
-            asyncio.create_task(process_one(i, el)) for i, el in enumerate(element_list)
+            for i, element in enumerate(element_list)
         ]
 
-        # --- 完了した順にストリーム送信 ---
-        for coro in asyncio.as_completed(tasks):
+        # --- 2) Gemma を 1 バッチ推論（非同期オフロード）---
+        gemma_flags = await judge_and_make_report.gemma_judge_batch_async(processors)
+        # gemma_flags[i] == True ならフォーマット OK
+
+        # --- 3) Gemini フォールバック + レポートを並列実行 ---
+        async def post_process(proc, ok):
+            if not ok:
+                await proc.gemini_judge_async()
+            report, pred = await proc.make_report_async()
+            return dict(
+                element=proc.element_name,
+                report=report,
+                pred_label=pred,
+                gemma_judge=proc.judge,
+                gemma_success=ok,
+            )
+
+        tasks = [
+            asyncio.create_task(post_process(p, ok))
+            for p, ok in zip(processors, gemma_flags)
+        ]
+
+        # --- 4) ストリーム送信 ---
+        for coro in asyncio.as_completed(tasks):  # ← 終わった順に送る
             try:
                 result = await coro
                 yield json.dumps(result, ensure_ascii=False) + "\n"
             except Exception as e:
-                logger.error(f"stream item failed: {e}")
-                err = {"error": "処理中に問題が発生しました"}
-                yield json.dumps(err, ensure_ascii=False) + "\n"
+                logger.error(f"item failed: {e}")
+                yield json.dumps({"error": "処理中に問題が発生しました"}) + "\n"
 
-    # text/event-stream でも可。ここでは NDJSON を維持
     return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
 
