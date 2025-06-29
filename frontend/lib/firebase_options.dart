@@ -58,24 +58,22 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAYpGmS03x1MykjCpTbwgE9KuI88yX0AhE',
+    apiKey: 'AIzaSyDsYBcvHjVarMnQpDZkcY8tk2ps1lLdAOY',
     appId: '1:47665095629:ios:b952d5de21082d32d05a84',
     messagingSenderId: '47665095629',
     projectId: 'chat-mbti-458210',
     storageBucket: 'chat-mbti-458210.firebasestorage.app',
-    iosClientId:
-        '47665095629-fvktdn96mblt00kc0j9527mk6uuu9ku3.apps.googleusercontent.com',
+    iosClientId: '47665095629-fvktdn96mblt00kc0j9527mk6uuu9ku3.apps.googleusercontent.com',
     iosBundleId: 'com.example.flutterUi',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyAYpGmS03x1MykjCpTbwgE9KuI88yX0AhE',
+    apiKey: 'AIzaSyDsYBcvHjVarMnQpDZkcY8tk2ps1lLdAOY',
     appId: '1:47665095629:ios:b952d5de21082d32d05a84',
     messagingSenderId: '47665095629',
     projectId: 'chat-mbti-458210',
     storageBucket: 'chat-mbti-458210.firebasestorage.app',
-    iosClientId:
-        '47665095629-fvktdn96mblt00kc0j9527mk6uuu9ku3.apps.googleusercontent.com',
+    iosClientId: '47665095629-fvktdn96mblt00kc0j9527mk6uuu9ku3.apps.googleusercontent.com',
     iosBundleId: 'com.example.flutterUi',
   );
 
@@ -87,4 +85,5 @@ class DefaultFirebaseOptions {
     authDomain: 'chat-mbti-458210.firebaseapp.com',
     storageBucket: 'chat-mbti-458210.firebasestorage.app',
   );
+
 }

@@ -2,11 +2,51 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
+class JudgeAndReport {
+  final String element;
+  final String report;
+  final String gemmaJudge;
+  final bool gemmaSuccess;
+  final String pred_label;
+
+  JudgeAndReport({
+    required this.element,
+    required this.report,
+    required this.gemmaJudge,
+    required this.gemmaSuccess,
+    required this.pred_label,
+  });
+
+  factory JudgeAndReport.fromJson(Map<String, dynamic> json) {
+    return JudgeAndReport(
+      element: json['element'] ?? 'element enmpty',
+      report: json['report'] ?? 'report empty',
+      gemmaJudge: json['gemma_judge'] ?? 'gemma-judge enmpty',
+      gemmaSuccess: json['gemma_success'] ?? false,
+      pred_label: json['pred_label'] ?? '',
+    );
+  }
+}
 
 class ApiService {
-  static const String baseUrl = kDebugMode
-      ? 'http://localhost:8000/api/v1'
-      : '/api/v1';
+  static const String baseUrl =
+      kDebugMode ? 'http://localhost:8000/api/v1' : '/api/v1';
+
+    // ここでアップロード機能を追加します
+  Future<String?> uploadTextToFirebaseStorage(String text, String fileName) async {
+    try {
+      final storageRef = FirebaseStorage.instance.ref().child('feedback/$fileName');
+      final data = Uint8List.fromList(text.codeUnits);
+      final uploadTask = storageRef.putData(data, SettableMetadata(contentType: 'text/plain'));
+      final snapshot = await uploadTask.whenComplete(() => null);
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      print('Upload failed: $e');
+      return null;
+    }
+  }
 
   Future<String?> _getAuthToken() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -130,7 +170,41 @@ class ApiService {
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to get conversation history: ${response.statusCode}');
+      throw Exception(
+        'Failed to get conversation history: ${response.statusCode}',
+      );
+    }
+  }
+
+  Stream<String> fetchReportStreamFromApi() async* {
+    try {
+      // サーバーのAPIエンドポイントにリクエストを送信
+      final request = http.Request(
+        'GET',
+        Uri.parse(
+          'https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app/generate-report-stream',
+        ),
+      );
+      final response = await http.Client().send(request);
+
+      String buffer = '';
+
+      // APIからのレスポンスを受け取り、ストリームとして処理
+      await for (final chunk in response.stream.transform(utf8.decoder)) {
+        buffer += chunk;
+
+        while (buffer.contains('}')) {
+          final endOfJson = buffer.indexOf('}') + 1;
+          final jsonString = buffer.substring(0, endOfJson);
+          buffer = buffer.substring(endOfJson);
+
+          yield jsonString;
+        }
+      }
+    } catch (e) {
+      // エラーハンドリング
+      print('APIからのデータ取得中にエラーが発生しました: $e');
+      yield jsonEncode({"error": "API接続に失敗しました: $e"});
     }
   }
 }

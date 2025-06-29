@@ -8,6 +8,7 @@ import 'data_collection_page.dart';
 import 'auth_guard.dart';
 import 'package:flutter/material.dart';
 import 'home.dart';
+import 'result.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +34,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MBTI-Chat',
+      title: 'Chat-MBTI',
       theme: ThemeData(
         fontFamily: 'NotoSansJP', // 日本語フォント推奨
         scaffoldBackgroundColor: const Color(0xFFFAF9F6), // クリーム色
@@ -42,6 +43,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (ctx) => const LoginPage(),
         '/chat': (ctx) => const AuthGuard(child: FriendlyChatPage()),
+        '/result': (ctx) => const AuthGuard(child: ResultPage()),
         '/data-collection': (ctx) => const DataCollectionPage(),
         // '/resetpassword': (ctx) => const ResetPasswordPage(),
       },

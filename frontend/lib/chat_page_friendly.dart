@@ -1124,104 +1124,12 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   Widget _buildCompletionView() {
-    return Container(
-      color: Colors.white,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.black,
-                        borderRadius: BorderRadius.circular(32),
-                      ),
-                      child: const Icon(
-                        Icons.psychology,
-                        size: 48,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      '診断完了！',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_completionMessage != null)
-                      Text(
-                        _completionMessage!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          height: 1.6,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    const SizedBox(height: 32),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isCompleted = false;
-                            _currentQuestion = null;
-                            _currentOptions = [];
-                            _chatHistory = [];
-                            _progress = 0.0;
-                            _questionNumber = 1;
-                            _sessionId = null;
-                          });
-                          _bubbleAnimController.reset();
-                          _progressAnimController.reset();
-                          // 新しい会話を強制的に開始（既存セッションを無視）
-                          _startNewConversation();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text(
-                          'もう一度診断する',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    // 診断完了時に/resultへ即遷移
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.of(context).pushReplacementNamed('/result');
+    });
+    return const Center(
+      child: CircularProgressIndicator(),
     );
   }
 
