@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'result.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FriendlyChatPage extends StatefulWidget {
   const FriendlyChatPage({super.key});
@@ -44,6 +46,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   @override
   void initState() {
     super.initState();
+    _isCompleted = false; // ← 追加: 初期化時に必ずリセット
     _bubbleAnimController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -231,7 +234,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
       if (data['phase'] == 'question') {
         final newQuestionNumber = data['question_number'] ?? 1;
-        final newPhase = ((newQuestionNumber - 1) ~/ 10) + 1;
+        final newPhase = ((newQuestionNumber - 1) ~/ 8) + 1;
 
         // Check if we need to transition to a new phase (every 10 questions)
         if (newPhase > _currentPhase) {
@@ -508,7 +511,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -552,12 +555,80 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black54, size: 24),
+            onPressed: _showResetDialog,
+            tooltip: 'リセット',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout, color: Colors.black54, size: 24),
             onPressed: _signOut,
+            tooltip: 'サインアウト',
           ),
         ],
       ),
     );
+  }
+
+  // チャットリセット用のモーダルダイアログ
+  void _showResetDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('診断をリセットしますか？'),
+          content: const Text('現在の会話履歴と進捗がすべて消去され、最初から診断をやり直します。よろしいですか？'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('キャンセル'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _resetChat();
+              },
+              child: const Text('リセット', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // チャット状態をリセットして新しい会話を開始
+  Future<void> _resetChat() async {
+    // フィードバック送信済み状態もリセット
+    if (_sessionId != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('feedback_sent_[200m${_sessionId!}[0m');
+    }
+    setState(() {
+      _chatHistory = [];
+      _progress = 0.0;
+      _questionNumber = 1;
+      _totalQuestions = 20;
+      _sessionId = null;
+      _isLoading = false;
+      _error = null;
+      _isCompleted = false;
+      _completionMessage = null;
+      _isRestoringHistory = false;
+      _currentPhase = 1;
+      _currentQuestion = null;
+      _currentOptions = [];
+    });
+    await _startNewConversation();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('診断がリセットされました'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Widget _buildChatView() {
@@ -921,7 +992,6 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           ..._currentOptions.asMap().entries.map((entry) {
             final index = entry.key;
             final option = entry.value;
-
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               child: InkWell(
@@ -949,7 +1019,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                         ),
                         child: Center(
                           child: Text(
-                            String.fromCharCode(65 + index), // A, B, C...
+                            String.fromCharCode(65 + (index as int)), // A, B, C...
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -1124,9 +1194,11 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   Widget _buildCompletionView() {
-    // 診断完了時に/resultへ即遷移
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.of(context).pushReplacementNamed('/result');
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final result = await Navigator.of(context).pushNamed("/result");
+      if (result == true) {
+        _resetChat();
+      }
     });
     return const Center(
       child: CircularProgressIndicator(),

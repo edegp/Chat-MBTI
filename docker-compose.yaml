@@ -38,6 +38,8 @@ services:
           target: /app/config
         - action: rebuild
           path: ./diagnosis-chat-api/pyproject.toml
+    command: >
+      uvicorn app:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - '8000:8000'
     environment:
@@ -51,9 +53,13 @@ services:
       - DB_APP_PASS=${DB_APP_PASS}
       - DB_ADMIN_USER=${DB_ADMIN_USER}
       - DB_ADMIN_PASS=${DB_ADMIN_PASS}
+      - GOOGLE_CLOUD_PROJECT="chat-mbti-458210"
     depends_on:
       - db
     volumes:
+      - ./diagnosis-chat-api/src:/app/src
+      - ./diagnosis-chat-api/config:/app/config
+      - ./diagnosis-chat-api/firebase-adminsdk.json:/app/firebase-adminsdk.json
       - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
     restart: unless-stopped
 

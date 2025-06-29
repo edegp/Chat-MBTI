@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:frontend/firebase_options.dart';
 import 'package:url_strategy/url_strategy.dart';
+import 'dart:async';
 
 import 'chat_page_friendly.dart';
 import 'data_collection_page.dart';
@@ -40,6 +41,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFFAF9F6), // クリーム色
       ),
       initialRoute: "/data-collection",
+      // onGenerateRouteは不要
       routes: {
         '/': (ctx) => const LoginPage(),
         '/chat': (ctx) => const AuthGuard(child: FriendlyChatPage()),

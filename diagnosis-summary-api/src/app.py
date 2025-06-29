@@ -20,8 +20,29 @@ app = FastAPI(
 )
 
 
+class Message(BaseModel):
+    role: str = Field(
+        ..., description="Role of the message (e.g., 'user', 'assistant')"
+    )
+    content: str = Field(..., description="Content of the message")
+
+
 class ReportRequest(BaseModel):
-    data_path: str = Field(..., description="GCS上のデータパス")
+    element_id: int = Field(
+        ...,
+        description="Element ID (0: energy, 1: mind, 2: nature, 3: tactics)",
+    )
+    messages: list[Message] = Field(
+        ...,
+        description="List of messages in the conversation history",
+    )
+
+
+class ReportStreamRequest(BaseModel):
+    data_path: str = Field(
+        ...,
+        description="Path to the CSV file containing conversation history",
+    )
 
 
 class StreamResponse(BaseModel):
@@ -32,8 +53,63 @@ class StreamResponse(BaseModel):
     gemma_success: bool
 
 
+element_map = ["energy", "mind", "nature", "tactics"]
+
+
+@app.post("/generate-report")
+async def generate_report(request: ReportRequest):
+    async def stream_generator():
+        for message in request.messages:
+            if not isinstance(message, Message):
+                logger.error("Invalid message format: %s", message)
+                yield json.dumps({"error": "Invalid message format"}) + "\n"
+                return
+
+        processor = judge_and_make_report(
+            messages=request.messages,
+            element=element_map[request.element_id],
+            config_path="config.yaml",
+        )
+
+        if not processor:
+            logger.error("No processors created. Check your input data.")
+            yield json.dumps({"error": "No valid processors available"}) + "\n"
+            return
+        # --- 0) モデルのロード -----------------------------------
+        processor = judge_and_make_report(
+            messages=request.messages,
+            element=request.element_id,
+            config_path="config.yaml",
+        )
+        if not processor.model_manager.initialized:
+            if not await processor.model_manager.load_model_async():
+                logger.error("Failed to load model")
+                yield json.dumps({"error": "モデルの読み込みに失敗しました"}) + "\n"
+
+        judge, is_success_gemma_judge = await processor.gemma_judge_async()
+        if not is_success_gemma_judge:
+            await processor.gemini_judge_async()
+        report, pred = await processor.make_report_async(judge, is_success_gemma_judge)
+
+        yield (
+            json.dumps(
+                {
+                    "element": processor.element_name,
+                    "report": report,
+                    "pred_label": pred,
+                    "gemma_judge": processor.judge,
+                    "gemma_success": is_success_gemma_judge,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+
+    return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
+
+
 @app.post("/generate-report-stream-batch")
-async def generate_report_stream(request: ReportRequest):
+async def generate_report_stream(request: ReportStreamRequest):
     async def stream_generator():
         # --- 0) 前処理 ---
         phase_df = utils.read_csv_from_gcs(request.data_path, encoding="utf-8")
@@ -50,11 +126,17 @@ async def generate_report_stream(request: ReportRequest):
             for i, element in enumerate(element_list)
         ]
 
+        sem = asyncio.Semaphore(2)
+
+        async def load_with_limit(p):
+            async with sem:  # ★ ここで個々のタスクが acquire
+                return await p.model_manager.load_model_async()
+
+        # gather に渡すのは “セマフォ付きラッパ” タスク
+        await asyncio.gather(*(load_with_limit(p) for p in processors))
+
         # --- 2) Gemma を 1 バッチ推論（非同期オフロード）---
-        judges, gemma_flags = await judge_and_make_report.gemma_judge_batch_async(
-            processors
-        )
-        # gemma_flags[i] == True ならフォーマット OK
+        judges, gemma_flags = await judge_and_make_report.gemma_judge_async(processors)
 
         # --- 3) Gemini フォールバック + レポートを並列実行 ---
         async def post_process(proc, judge, ok):
@@ -87,7 +169,7 @@ async def generate_report_stream(request: ReportRequest):
 
 
 @app.post("/generate-report-stream")
-async def judge_and_make_report_app(request: ReportRequest):
+async def judge_and_make_report_app(request: ReportStreamRequest):
     """
     会話履歴から診断とレポートの作成を行う
     """

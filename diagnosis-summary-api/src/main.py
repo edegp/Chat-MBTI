@@ -1,5 +1,5 @@
 import re
-from typing import List
+from typing import Tuple
 import asyncio
 from . import utils
 
@@ -48,36 +48,17 @@ class judge_and_make_report:
             message_max_length,
         )
 
-    @staticmethod
-    async def gemma_judge_batch_async(
-        processors: List["judge_and_make_report"],
-    ) -> List[bool]:
-        """バッチ推論をスレッドに逃がし event-loop を塞がない版"""
-        if not processors:
-            return []
+    async def gemma_judge_async(self) -> Tuple[str, bool]:
+        # 2) 推論
+        raw = await self.model_manager.generate_async(self.build_gemma_prompt())
 
-        prompts = [p.build_gemma_prompt() for p in processors]
-        mgr = processors[0].model_manager
-
-        # モデルロードもスレッドへ
-        loop = asyncio.get_running_loop()
-        loaded = await loop.run_in_executor(None, mgr.load_model)
-        if not loaded:
-            raise RuntimeError("Failed to load model")
-
-        # ① generate_batch を同じ executor で実行
-        responses = await loop.run_in_executor(None, mgr.generate_batch, prompts)
-
-        # ② 後処理（CPU 軽め）だけは非同期関数内で実行
-        success_flags = []
-        for p, r in zip(processors, responses):
-            r = utils.remove_special_token(r)
-            p.judge = r
-            ok, err = utils.judge_response_follow_format(r, true_labels=p.true_labels)
-            if not ok:
-                logger.warning(f"{p.element_name}: format error: {err}")
-            success_flags.append(ok)
-        return [p.judge for p in processors], success_flags
+        # 3) 後処理
+        cleaned = utils.remove_special_token(raw)
+        self.judge = cleaned
+        ok, err = utils.judge_response_follow_format(cleaned, self.true_labels)
+        if not ok:
+            logger.warning("%s: format error: %s", self.element_name, err)
+        return cleaned, ok
 
     def gemma_judge(self, message_max_length=2000):
         """GPU最適化されたGemma推論"""

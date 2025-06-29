@@ -129,7 +129,7 @@ class LangGraphDriver:
         llm_port: LLMPort,
         question_repository: QuestionRepositoryPort,
         elements_repository: ElementRepositoryPort,
-        questions_per_phase: int = 10,  # Configurable for different use cases (default 10)
+        questions_per_phase: int = 8,  # Configurable for different use cases (default 10)
     ):
         self.llm_port = llm_port
         self.question_repository = question_repository

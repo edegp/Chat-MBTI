@@ -355,6 +355,7 @@ class MBTIController:
             return create_error_response(error)
 
 
+
 def get_mbti_controller() -> MBTIController:
     """Dependency injection for MBTIController"""
     # Create dependencies
@@ -363,10 +364,14 @@ def get_mbti_controller() -> MBTIController:
     session_repo = SessionRepositoryGateway()
     elements_repo = ElementRepositoryGateway()
 
-    langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo)
-    # Create workflow gateway
+    # 通常API用: 1フェーズ5問
+    langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo, questions_per_phase=5)
     workflow_gateway = WorkflowGateway(langgraph_driver)
     data_collection_repo = DataCollectionRepositoryGateway()
+
+    # データ収集用: 1フェーズ10問
+    data_collection_langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo, questions_per_phase=10)
+    data_collection_workflow_gateway = WorkflowGateway(data_collection_langgraph_driver)
 
     # Create service
     mbti_service = MBTIConversationService(
@@ -375,6 +380,7 @@ def get_mbti_controller() -> MBTIController:
         session_repository=session_repo,
         elements_repository=elements_repo,
         data_collection_repository=data_collection_repo,
+        data_collection_workflow_port=data_collection_workflow_gateway,
     )
     data_collection_service = DataCollectionService(
         data_collection_repository=data_collection_repo,

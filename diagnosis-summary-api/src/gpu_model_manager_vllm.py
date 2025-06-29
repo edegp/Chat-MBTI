@@ -1,14 +1,17 @@
 import asyncio
 import torch
+import traceback
 from typing import Optional, Dict
 from logging import getLogger
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from concurrent.futures import ThreadPoolExecutor
 from transformers.integrations.bitsandbytes import validate_bnb_backend_availability
+import transformers
 
 logger = getLogger(__name__)
 
 validate_bnb_backend_availability(raise_exception=True)
+transformers.utils.logging.set_verbosity_debug()
 
 
 class GPUModelManager:
@@ -19,9 +22,9 @@ class GPUModelManager:
     _semaphore: asyncio.Semaphore | None = None
 
     @classmethod
-    def _get_semaphore(cls) -> asyncio.Semaphore:
+    def _get_semaphore(cls, parallel=4) -> asyncio.Semaphore:
         if cls._semaphore is None:
-            cls._semaphore = asyncio.Semaphore(4)
+            cls._semaphore = asyncio.Semaphore(parallel)
         return cls._semaphore
 
     def __new__(cls, model_name: str):
@@ -49,10 +52,7 @@ class GPUModelManager:
             logger.info(f"Loading model {self.model_name} on device: {self.device}")
 
             # トークナイザーの読み込み
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                self.model_name,
-                local_files_only=True,
-            )
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
             if self.device == "cuda":
                 # GPU用量子化設定
@@ -65,8 +65,7 @@ class GPUModelManager:
                         bnb_4bit_compute_dtype=torch.bfloat16,
                         bnb_4bit_use_double_quant=use_double_quant,  # 設定可能
                     ),
-                    device_map="auto",
-                    local_files_only=True,
+                    device_map={"": "cuda:0"},
                     low_cpu_mem_usage=True,
                 )
             else:
@@ -86,7 +85,12 @@ class GPUModelManager:
 
         except Exception as e:
             logger.error(f"Failed to load model {self.model_name}: {e}")
+            traceback.print_exc()
             return False
+
+    async def load_model_async(self):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.load_model)
 
     def generate(
         self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.1

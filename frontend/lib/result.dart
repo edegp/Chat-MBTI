@@ -5,14 +5,24 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class ResultPage extends StatefulWidget {
-  const ResultPage({super.key});
+class ResultPage extends StatelessWidget {
+  const ResultPage({Key? key}) : super(key: key);
 
   @override
-  _ResultPageState createState() => _ResultPageState();
+  Widget build(BuildContext context) {
+    return _ResultPageContent();
+  }
 }
 
-class _ResultPageState extends State<ResultPage> {
+class _ResultPageContent extends StatefulWidget {
+  final VoidCallback? onRestartDiagnosis;
+  const _ResultPageContent({Key? key, this.onRestartDiagnosis}) : super(key: key);
+
+  @override
+  _ResultPageContentState createState() => _ResultPageContentState();
+}
+
+class _ResultPageContentState extends State<_ResultPageContent> {
   late StreamSubscription _streamSubscription;
   final List<JudgeAndReport> _receivedReports = [];
   final ScrollController _scrollController = ScrollController();
@@ -50,6 +60,8 @@ class _ResultPageState extends State<ResultPage> {
     "判断の仕方",
     "外界との接し方",
   ];
+
+  bool _feedbackSent = false;
 
   Stream<String> generateJsonStream() async* {
   final jsonParts = [
@@ -170,6 +182,97 @@ class _ResultPageState extends State<ResultPage> {
   // 正解ラベルの収集＆フィードバックのウィジット
   // 送信ボタンを押すとデータがGCSに送信されるようにしたい
   Widget _buildFeedbackSection(BuildContext context) {
+    return _FeedbackSection(
+      mbtiTypeOptions: _mbtiTypeOptions,
+      selectedMbtiType: _selectedMbtiType,
+      feedbackTextController: _feedbackTextController,
+      apiService: _apiService,
+      onMbtiTypeChanged: (type) => setState(() => _selectedMbtiType = type),
+      onFeedbackSent: () => setState(() => _feedbackSent = true),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 必ずWidgetを返すよう修正
+    return Scaffold(
+      appBar: AppBar(title: const Text('診断結果')),
+      body: _buildBody(),
+    );
+  }
+  Widget _buildBody() {
+    if (_receivedReports.isEmpty) {
+      return const Center(child: Text("診断結果を生成中です..."));
+    }
+
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (_allReportsLoaded) _buildFinalResultBanner(),
+        for (int i = 0; i < _receivedReports.length; i++) ...[
+          Text(
+            reportHeadings.length > i ? reportHeadings[i] : '診断レポート',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.deepPurple),
+          ),
+          const SizedBox(height: 8),
+          MarkdownBody(data: _receivedReports[i].report),
+          const SizedBox(height: 24),
+        ],
+        if (_allReportsLoaded && !_feedbackSent)
+          _buildFeedbackSection(context),
+        if (_allReportsLoaded && _feedbackSent) ...[
+          const Center(
+            child: Text(
+              'ご協力ありがとうございました！',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(true);
+              },
+              child: const Text('もう一度診断する'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _FeedbackSection extends StatefulWidget {
+  final List<String> mbtiTypeOptions;
+  final String? selectedMbtiType;
+  final TextEditingController feedbackTextController;
+  final ApiService apiService;
+  final ValueChanged<String?> onMbtiTypeChanged;
+  final VoidCallback onFeedbackSent;
+
+  const _FeedbackSection({
+    required this.mbtiTypeOptions,
+    required this.selectedMbtiType,
+    required this.feedbackTextController,
+    required this.apiService,
+    required this.onMbtiTypeChanged,
+    required this.onFeedbackSent,
+  });
+
+  @override
+  State<_FeedbackSection> createState() => _FeedbackSectionState();
+}
+
+class _FeedbackSectionState extends State<_FeedbackSection> {
+  @override
+  Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
@@ -187,25 +290,23 @@ class _ResultPageState extends State<ResultPage> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _selectedMbtiType,
+            value: widget.selectedMbtiType,
             hint: const Text('性格タイプを選択'),
             isExpanded: true,
             decoration: const InputDecoration(border: OutlineInputBorder()),
-            items: _mbtiTypeOptions.map((String value) {
+            items: widget.mbtiTypeOptions.map((String value) {
               return DropdownMenuItem<String>(
                 value: value,
                 child: Text(value, overflow: TextOverflow.ellipsis),
               );
             }).toList(),
             onChanged: (String? newValue) {
-              setState(() {
-                _selectedMbtiType = newValue;
-              });
+              widget.onMbtiTypeChanged(newValue);
             },
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: _feedbackTextController,
+            controller: widget.feedbackTextController,
             decoration: const InputDecoration(
               hintText: 'ご意見・ご感想など',
               border: OutlineInputBorder(),
@@ -222,10 +323,9 @@ class _ResultPageState extends State<ResultPage> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               onPressed: () async {
-                final selectedType = _selectedMbtiType ?? '未選択';
-                final feedbackText = _feedbackTextController.text;
+                final selectedType = widget.selectedMbtiType ?? '未選択';
+                final feedbackText = widget.feedbackTextController.text;
 
-                // user_id取得（仮: ローカルストレージやProvider等で取得する場合は修正）
                 String userId = '';
                 try {
                   userId = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -234,15 +334,13 @@ class _ResultPageState extends State<ResultPage> {
                 }
 
                 final timestamp = DateTime.now().millisecondsSinceEpoch;
-                final sanitizedType = selectedType.replaceAll(RegExp(r'\s+'), '');
+                final sanitizedType = selectedType.replaceAll(RegExp(r'\\s+'), '');
                 final fileName = '${userId}_${timestamp}_$sanitizedType.txt';
-                final gcsPath = 'mbti_qa_data_collection/feedback/';
 
-                // GCSアップロードAPI呼び出し（ApiServiceにuploadFeedbackを追加する想定）
                 bool uploadSuccess = false;
                 String uploadError = '';
                 try {
-                  final url = await _apiService.uploadTextToFirebaseStorage(feedbackText, fileName);
+                  final url = await widget.apiService.uploadTextToFirebaseStorage(feedbackText, fileName);
                   uploadSuccess = url != null;
                 } catch (e) {
                   uploadError = e.toString();
@@ -252,15 +350,29 @@ class _ResultPageState extends State<ResultPage> {
                   context: context,
                   builder: (context) => AlertDialog(
                     title: Text(uploadSuccess ? 'フィードバック送信' : '送信エラー'),
-                    content: Text(
-                      uploadSuccess
-                          ? 'ご協力ありがとうございます！\n\n選択タイプ: $selectedType\n自由記述: $feedbackText'
-                          : '送信に失敗しました: $uploadError',
-                    ),
+                    content: uploadSuccess
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('ご協力ありがとうございます！'),
+                              const SizedBox(height: 12),
+                              Text('選択タイプ: $selectedType'),
+                              const SizedBox(height: 8),
+                              const Text('自由記述:'),
+                              Text(feedbackText, softWrap: true),
+                            ],
+                          )
+                        : Text('送信に失敗しました: $uploadError'),
                     actions: [
                       TextButton(
                         child: const Text('OK'),
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          if (uploadSuccess) {
+                            widget.onFeedbackSent();
+                          }
+                        },
                       ),
                     ],
                   ),
@@ -271,115 +383,6 @@ class _ResultPageState extends State<ResultPage> {
           ),
         ],
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 必ずWidgetを返すよう修正
-    return Scaffold(
-      appBar: AppBar(title: const Text('診断結果')),
-      body: _buildBody(),
-    );
-  }
-  Widget _buildBody() {
-    if (_receivedReports.isEmpty) {
-      return const Center(child: Text("診断結果を生成中です..."));
-    }
-
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: _receivedReports.length + (_allReportsLoaded ? 2 : 0),
-      itemBuilder: (context, index) {
-        if (_allReportsLoaded && index == 0) {
-          return _buildFinalResultBanner();
-        }
-        final reportIndex = _allReportsLoaded ? index - 1 : index;
-
-        if (reportIndex < _receivedReports.length) {
-          final reportObject = _receivedReports[reportIndex];
-          final headingText =
-              (reportIndex < reportHeadings.length)
-                  ? reportHeadings[reportIndex]
-                  : 'レポート ${reportIndex + 1}';
-
-          final judgedLabel = reportObject.pred_label;
-          final labels = _elementToLabels[reportObject.element] ?? ['?', '?'];
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                headingText,
-                style: TextStyle(
-                  color: Colors.grey[800],
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    Text(
-                      labels[0],
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color:
-                            judgedLabel == labels[0]
-                                ? Colors.deepPurple
-                                : Colors.grey[300],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text(
-                        '/',
-                        style: TextStyle(fontSize: 24, color: Colors.grey[400]),
-                      ),
-                    ),
-                    Text(
-                      labels[1],
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color:
-                            judgedLabel == labels[1]
-                                ? Colors.deepPurple
-                                : Colors.grey[300],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16.0),
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.deepPurple.withOpacity(0.5),
-                    width: 1,
-                  ),
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                child: MarkdownBody(
-                  data: reportObject.report,
-                  selectable: true,
-                ),
-              ),
-              const SizedBox(height: 24.0),
-            ],
-          );
-        }
-
-        if (_allReportsLoaded && index == _receivedReports.length + 1) {
-          return _buildFeedbackSection(context);
-        }
-
-        return const SizedBox.shrink();
-      },
     );
   }
 }
