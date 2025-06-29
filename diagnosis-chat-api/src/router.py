@@ -132,7 +132,7 @@ async def submit_answer(
                     "question": result["question"],
                     "progress": result.get("progress", 0.0),
                     "question_number": result.get("question_number", 1),
-                    "total_questions": result.get("total_questions", 20),
+                    "total_questions": result.get("total_questions"),
                 }
             )
         elif result["phase"] == "diagnosis":
@@ -228,7 +228,7 @@ async def get_progress(
             raise ValidationError(result["message"])
 
         logger.info(
-            f"Progress retrieved successfully: {result['progress']} {result['question_number']}/{result.get('total_questions', 20)}",
+            f"Progress retrieved successfully: {result['progress']} {result['question_number']}/{result.get('total_questions')}",
             extra={
                 "user_id": user_id,
                 "progress": result.get("progress"),
@@ -241,7 +241,7 @@ async def get_progress(
             "data": {
                 "progress": result["progress"],
                 "question_number": result.get("question_number", 0),
-                "total_questions": result.get("total_questions", 20),
+                "total_questions": result.get("total_questions"),
                 "session_id": result.get("session_id"),
             },
         }
@@ -257,19 +257,23 @@ async def get_progress(
         error.log_error(logger)
         raise error
 
+class CompleteAssessmentRequest(BaseModel):
+    force: bool = False
 
 @router.post("/conversation/complete")
 async def complete_assessment(
+    request: CompleteAssessmentRequest,
     controller: MBTIController = Depends(get_mbti_controller),
     current_user: dict = Depends(get_current_user),
 ):
     """Complete MBTI assessment and finalize session"""
     try:
+        logger.debug(f"Force complete: {request.force}")
         user_id = current_user.get("uid")
         if not user_id:
             raise AuthenticationError("User ID not found in authentication token")
 
-        result = await controller.complete_assessment(user_id)
+        result = await controller.complete_assessment(user_id, force=request.force)
         logger.info(f"Assessment completed for user: {user_id}")
         return {"data": result, "status": "success"}
     except MBTIApplicationError as e:
@@ -445,7 +449,7 @@ async def submit_data_collection_answer(
                     "question": result["question"],
                     "progress": result.get("progress", 0.0),
                     "question_number": result.get("question_number", 1),
-                    "total_questions": result.get("total_questions", 20),
+                    "total_questions": result.get("total_questions"),
                 }
             )
         elif result["phase"] == "diagnosis":

@@ -556,6 +556,7 @@ class LangGraphDriver:
                     try:
                         cp.get(config)
                     except Exception:
+                        cp.conn.autocommit = True
                         cp.setup()
 
                     graph_with_memory = self.graph_builder.compile(checkpointer=cp)
@@ -598,6 +599,7 @@ class LangGraphDriver:
                 return state_result.values if state_result else {}
             else:
                 with checkpointer as cp:
+                    cp.conn.autocommit = True
                     cp.setup()
                     graph_with_memory = self.graph_builder.compile(checkpointer=cp)
                     state_result = graph_with_memory.get_state(config)
@@ -620,6 +622,7 @@ class LangGraphDriver:
                 graph_with_memory.update_state(config, state)
             else:
                 with checkpointer as cp:
+                    cp.conn.autocommit = True
                     cp.setup()
                     graph_with_memory = self.graph_builder.compile(checkpointer=cp)
                     graph_with_memory.update_state(config, state)

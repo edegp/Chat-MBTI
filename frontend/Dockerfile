@@ -32,4 +32,4 @@ COPY . .
 EXPOSE 3000
 
 # Command to run Flutter web in development mode with hot reload
-CMD ["flutter", "run", "-d", "web-server", "--web-port=3000", "--web-hostname=0.0.0.0", "--hot"]
+CMD ["flutter", "run", "-d", "web-server", "--web-port=3000", "--web-hostname=0.0.0.0", "--hot", "--debug"]

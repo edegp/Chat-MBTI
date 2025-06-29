@@ -134,7 +134,7 @@ class ApiService {
   Future<Map<String, dynamic>> startNewConversation() async {
     try {
       // 既存のセッションを完了
-      await completeAssessment();
+      await completeAssessment(force: true);
     } catch (e) {
       // 既存セッションがない場合や、完了に失敗した場合は無視して続行
       debugPrint('Failed to complete existing session: $e');
@@ -145,17 +145,18 @@ class ApiService {
   }
 
   // 診断を完了
-  Future<Map<String, dynamic>> completeAssessment() async {
+  Future<Map<String, dynamic>> completeAssessment({bool force = false}) async {
     final headers = await _getHeaders();
     final response = await http.post(
       Uri.parse('$baseUrl/conversation/complete'),
       headers: headers,
+      body: json.encode({'force': force}),
     );
 
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to complete assessment: ${response.statusCode}');
+      throw Exception('Failed to complete assessment: \\${response.statusCode}');
     }
   }
 

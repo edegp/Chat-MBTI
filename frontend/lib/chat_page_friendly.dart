@@ -20,7 +20,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   List<Map<String, dynamic>> _chatHistory = [];
   double _progress = 0.0;
   int _questionNumber = 1;
-  int _totalQuestions = 20;
+  int _phase_per_question = 8; // 各フェーズの質問数（例: 8問）
+  int _totalQuestions = 8 * 4;
   String? _sessionId;
   bool _isLoading = false;
   String? _error;
@@ -72,12 +73,12 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       if (progressData['progress'] > 0 && progressData['progress'] < 1.0) {
         // 途中の会話がある場合、状態を復元
         final questionNumber = progressData['question_number'] ?? 1;
-        final currentPhase = ((questionNumber - 1) ~/ 10) + 1;
+        final currentPhase = ((questionNumber - 1) ~/ _phase_per_question) + 1;
 
         setState(() {
           _progress = (progressData['progress'] ?? 0.0).toDouble();
           _questionNumber = questionNumber;
-          _totalQuestions = progressData['total_questions'] ?? 20;
+          _totalQuestions = progressData['total_questions'] ?? _totalQuestions;
           _sessionId = progressData['session_id'];
           _currentPhase = currentPhase;
         });
@@ -260,7 +261,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           _currentQuestion = data['question'];
           _progress = (data['progress'] ?? 0.0).toDouble();
           _questionNumber = newQuestionNumber;
-          _totalQuestions = data['total_questions'] ?? 20;
+          _totalQuestions = data['total_questions'] ?? _totalQuestions;
           _isLoading = false;
           final qText = data['question'];
           if (_chatHistory.isEmpty || _chatHistory.last['text'] != qText) {
@@ -311,7 +312,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       setState(() {
         _progress = (progressData['progress'] ?? 0.0).toDouble();
         _questionNumber = progressData['question_number'] ?? 1;
-        _totalQuestions = progressData['total_questions'] ?? 20;
+        _totalQuestions = progressData['total_questions'] ?? _totalQuestions;
       });
 
       // デバッグ用ログ
@@ -353,8 +354,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       final history = historyData['history'] as List<dynamic>;
 
       // Determine phase boundaries for questions
-      final phaseStartIndex = (_currentPhase - 1) * 10;
-      final phaseEndIndex = _currentPhase * 10;
+      final phaseStartIndex = (_currentPhase - 1) * _phase_per_question;
+      final phaseEndIndex = _currentPhase * _phase_per_question;
       final phaseStartQuestion = phaseStartIndex + 1;
       final phaseEndQuestion = phaseEndIndex;
       // Build filtered history based on phase boundaries
@@ -506,7 +507,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
   Widget _buildSimpleAppBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -520,7 +521,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: Colors.black,
               borderRadius: BorderRadius.circular(8),
@@ -531,7 +532,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
               size: 20,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -542,13 +543,6 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
-                  ),
-                ),
-                Text(
-                  'あなたの性格を分析します',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
                   ),
                 ),
               ],
@@ -608,7 +602,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       _chatHistory = [];
       _progress = 0.0;
       _questionNumber = 1;
-      _totalQuestions = 20;
+      _totalQuestions = 8 * 4;
       _sessionId = null;
       _isLoading = false;
       _error = null;
@@ -697,7 +691,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   Widget _buildCompactProgressBar() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -918,8 +912,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                 child: Text(
                   text,
                   style: const TextStyle(
-                    fontSize: 17,
-                    height: 1.4,
+                    fontSize: 15,
+                    height: 1.35,
                     color: Colors.black87,
                   ),
                 ),
@@ -945,8 +939,8 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
               child: Text(
                 text,
                 style: const TextStyle(
-                  fontSize: 17,
-                  height: 1.4,
+                  fontSize: 15,
+                  height: 1.35,
                   color: Colors.white,
                 ),
               ),
@@ -976,19 +970,19 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
   Widget _buildOptions() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             '選択肢から選ぶ',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           ..._currentOptions.asMap().entries.map((entry) {
             final index = entry.key;
             final option = entry.value;
@@ -996,10 +990,10 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
               margin: const EdgeInsets.only(bottom: 8),
               child: InkWell(
                 onTap: () => _submitAnswer(option),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.grey[50],
                     borderRadius: BorderRadius.circular(8),
@@ -1028,22 +1022,17 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           option,
                           style: const TextStyle(
-                            fontSize: 16,
-                            height: 1.4,
+                            fontSize: 14,
+                            height: 1.35,
                             color: Colors.black87,
                           ),
                         ),
-                      ),
-                      const Icon(
-                        Icons.arrow_forward_ios,
-                        size: 14,
-                        color: Colors.grey,
-                      ),
+                      )
                     ],
                   ),
                 ),
@@ -1057,7 +1046,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
   Widget _buildInputArea() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.grey[50],
         border: Border(
@@ -1070,12 +1059,12 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           const Text(
             '自由に回答する',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
               color: Colors.black87,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             children: [
               Expanded(

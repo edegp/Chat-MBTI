@@ -108,6 +108,11 @@ services:
     ports:
       - '5432:5432'
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres']
+      interval: 1s
+      timeout: 2s
+      retries: 10
 
   db-monitor:
     image: postgres:15

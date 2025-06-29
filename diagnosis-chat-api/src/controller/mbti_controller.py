@@ -237,7 +237,7 @@ class MBTIController:
             error_response["progress"] = 0.0  # 追加フィールド
             return error_response
 
-    async def complete_assessment(self, user_id: str) -> Dict[str, Any]:
+    async def complete_assessment(self, user_id: str, force: bool) -> Dict[str, Any]:
         """Complete MBTI assessment endpoint"""
         logger.info(f"Completing assessment for user: {user_id}")
 
@@ -247,7 +247,7 @@ class MBTIController:
             return create_error_response(error)
 
         try:
-            result = self.mbti_service.complete_assessment(user_id)
+            result = self.mbti_service.complete_assessment(user_id, force)
             logger.info(f"Assessment completed successfully for user: {user_id}")
             return result
         except MBTIApplicationError as e:

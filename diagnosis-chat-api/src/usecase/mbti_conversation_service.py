@@ -29,6 +29,11 @@ logger = logging.getLogger(__name__)
 class MBTIConversationService:
     """Service for managing MBTI conversation business logic"""
 
+    # Configurable question/phase counts for standard MBTI
+    QUESTIONS_PER_PHASE = 8  # Example: 5 questions per phase (can be changed)
+    NUM_PHASES = 4           # Example: 4 phases (can be changed)
+    TOTAL_QUESTIONS = QUESTIONS_PER_PHASE * NUM_PHASES
+
     def __init__(
         self,
         workflow_port: WorkflowPort,
@@ -240,8 +245,8 @@ class MBTIConversationService:
 
                 total_questions = self.data_collection_service.TOTAL_QUESTIONS
             else:
-                # Standard MBTI logic (20 questions)
-                if next_order >= 20:
+                # Standard MBTI logic (configurable total questions)
+                if next_order >= self.TOTAL_QUESTIONS:
                     logger.info(
                         "Assessment complete",
                         extra={
@@ -255,7 +260,7 @@ class MBTIConversationService:
                         "session_id": session_id,
                         "status": "success",
                     }
-                total_questions = 20
+                total_questions = self.TOTAL_QUESTIONS
 
             # Execute workflow with user response
             result = workflow.execute_conversation_flow(user_input, session_id, user_id)
@@ -366,7 +371,7 @@ class MBTIConversationService:
                 "status": "error",
             }
 
-    def complete_assessment(self, user_id: str) -> Dict[str, Any]:
+    def complete_assessment(self, user_id: str, force: bool= False) -> Dict[str, Any]:
         """Complete the MBTI assessment and close session"""
         try:
             logger.info("Completing assessment", extra={"user_id": user_id})
@@ -396,15 +401,16 @@ class MBTIConversationService:
                     },
                 )
             else:
-                # Standard MBTI assessment requires 20 questions
-                if answered_questions < 20:
+                # Standard MBTI assessment requires all questions answered
+                if not force and answered_questions < self.TOTAL_QUESTIONS:
+                    logger.warning(f"{force} {answered_questions} < {self.TOTAL_QUESTIONS}")
                     raise AssessmentIncompleteError(
-                        f"Assessment incomplete. Only {answered_questions}/20 questions answered.",
+                        f"Assessment incomplete. Only {answered_questions}/{self.TOTAL_QUESTIONS} questions answered.",
                         {
                             "user_id": user_id,
                             "session_id": session_id,
                             "answered_questions": answered_questions,
-                            "required_questions": 20,
+                            "required_questions": self.TOTAL_QUESTIONS,
                         },
                     )
 
@@ -446,7 +452,7 @@ class MBTIConversationService:
                 return {
                     "progress": 0.0,
                     "question_number": 1,
-                    "total_questions": 20,
+                    "total_questions": self.TOTAL_QUESTIONS,
                     "session_id": None,
                     "status": "error",
                     "message": "No active session found",
@@ -456,9 +462,9 @@ class MBTIConversationService:
             next_order = current_state.get("next_display_order", 0)
             # Completed questions count
             completed_questions = next_order
-            progress = min(completed_questions / 20.0, 1.0)
-            # Next question number (1-based, max 20)
-            current_question_number = min(max(next_order, 1), 20)
+            progress = min(completed_questions / self.TOTAL_QUESTIONS, 1.0)
+            # Next question number (1-based, max TOTAL_QUESTIONS)
+            current_question_number = min(max(next_order, 1), self.TOTAL_QUESTIONS)
 
             logger.info(
                 f"GET Progress: next_order={next_order}, completed_questions={completed_questions}, progress={progress}, question_number={current_question_number}"
@@ -467,7 +473,7 @@ class MBTIConversationService:
             return {
                 "progress": progress,
                 "question_number": current_question_number,
-                "total_questions": 20,
+                "total_questions": self.TOTAL_QUESTIONS,
                 "session_id": session_id,
                 "status": "success",
             }

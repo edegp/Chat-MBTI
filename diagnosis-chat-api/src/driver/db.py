@@ -231,9 +231,10 @@ def init_postgres(dsn: str = DB_URI) -> None:
 
             logger.info("PostgreSQL schema initialized successfully")
     except psycopg.Error as e:
+        logger.error(f"PostgreSQL error occurred: {str(e)}")
         error = ConnectionError(
             "Failed to initialize PostgreSQL schema",
-            {"dsn": dsn, "error_code": e.pgcode, "error_message": str(e)},
+            {"dsn": dsn, "error_code": e, "error_message": str(e)},
         )
         error.log_error(logger)
         raise error
