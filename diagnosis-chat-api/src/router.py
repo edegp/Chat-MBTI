@@ -378,11 +378,10 @@ async def proxy_generate_report(
     logger.debug(f"Generating report for user {user_id} with element {element_id}")
     # diagnosis-summary-api のURL（docker-composeならサービス名でOK）
     summary_api_url = os.path.join(
-        "https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app",
+        os.getenv("SUMMARY_API_URL"),
         "summary",
         "generate-report",
     )
-    logger.debug(f"Summary API URL: {summary_api_url}")
 
     request_data = GenerateReport(
         messages=messages[-20:],  # Use the latest 20 messages
