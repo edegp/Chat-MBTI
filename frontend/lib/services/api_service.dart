@@ -74,8 +74,8 @@ class ApiService {
   }
   static const String baseUrl =
       kDebugMode ? 'http://localhost:8000/api/v1' : '/api/v1';
-  static const String reportUrl =
-      kDebugMode ? String.fromEnvironment('REPORT_URL') : '/summary';
+  // static const String reportUrl =
+  //     kDebugMode ? String.fromEnvironment('REPORT_URL') : '/summary';
 
     // ここでアップロード機能を追加します
   Future<String?> uploadTextToFirebaseStorage(String text, String fileName) async {
@@ -270,35 +270,35 @@ class ApiService {
     }
   }
 
-  Stream<String> fetchReportStreamFromApi() async* {
-    try {
-      // サーバーのAPIエンドポイントにリクエストを送信
-      final request = http.Request(
-        'GET',
-        Uri.parse(
-          '$reportUrl/generate-report-stream',
-        ),
-      );
-      final response = await http.Client().send(request);
+  // Stream<String> fetchReportStreamFromApi() async* {
+  //   try {
+  //     // サーバーのAPIエンドポイントにリクエストを送信
+  //     final request = http.Request(
+  //       'GET',
+  //       Uri.parse(
+  //         '$reportUrl/generate-report-stream',
+  //       ),
+  //     );
+  //     final response = await http.Client().send(request);
 
-      String buffer = '';
+  //     String buffer = '';
 
-      // APIからのレスポンスを受け取り、ストリームとして処理
-      await for (final chunk in response.stream.transform(utf8.decoder)) {
-        buffer += chunk;
+  //     // APIからのレスポンスを受け取り、ストリームとして処理
+  //     await for (final chunk in response.stream.transform(utf8.decoder)) {
+  //       buffer += chunk;
 
-        while (buffer.contains('}')) {
-          final endOfJson = buffer.indexOf('}') + 1;
-          final jsonString = buffer.substring(0, endOfJson);
-          buffer = buffer.substring(endOfJson);
+  //       while (buffer.contains('}')) {
+  //         final endOfJson = buffer.indexOf('}') + 1;
+  //         final jsonString = buffer.substring(0, endOfJson);
+  //         buffer = buffer.substring(endOfJson);
 
-          yield jsonString;
-        }
-      }
-    } catch (e) {
-      // エラーハンドリング
-      print('APIからのデータ取得中にエラーが発生しました: $e');
-      yield jsonEncode({"error": "API接続に失敗しました: $e"});
-    }
-  }
+  //         yield jsonString;
+  //       }
+  //     }
+  //   } catch (e) {
+  //     // エラーハンドリング
+  //     print('APIからのデータ取得中にエラーが発生しました: $e');
+  //     yield jsonEncode({"error": "API接続に失敗しました: $e"});
+  //   }
+  // }
 }
