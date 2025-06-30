@@ -31,6 +31,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   bool _isCompleted = false;
   String? _completionMessage;
   bool _isRestoringHistory = false; // 履歴復元中フラグを追加
+  bool _isNavigatingToResult = false; // 結果ページへの遷移中フラグ
 
   // UI transition management - show only current phase conversations
   int _currentPhase = 1; // Phase 1: Q1-5, Phase 2: Q6-10, etc.
@@ -535,7 +536,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           children: [
             _buildSimpleAppBar(),
             Expanded(
-              child: !_isLoading ? _buildCompletionView() : _buildChatView(),
+              child: _isCompleted ? _buildCompletionView() : _buildChatView(),
             ),
           ],
         ),
@@ -576,7 +577,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'MBTI診断AI',
+                  'Chat MBTI',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -1246,13 +1247,25 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   Widget _buildCompletionView() {
+    if (_isNavigatingToResult) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    _isNavigatingToResult = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final result = await Navigator.of(context).pushNamed("/result", arguments: {
         'reports': _reports,
         'reportFutures': _reportFutures,
+        'onReset': _resetChat,
       });
+      _isNavigatingToResult = false;
       if (result == true) {
         _resetChat();
+      } else {
+        if (mounted) {
+          setState(() {
+            _isCompleted = false;
+          });
+        }
       }
     });
     return const Center(

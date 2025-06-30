@@ -31,6 +31,23 @@ class JudgeAndReport {
 }
 
 class ApiService {
+  /// フィードバック送信済みかどうかを確認するAPI
+  /// Firebase Storage上にフィードバックファイルが存在するか確認
+  Future<bool> hasSentFeedback(String userId) async {
+    try {
+      final ListResult result = await FirebaseStorage.instance.ref().child('feedback').listAll();
+      // ファイル名が userId で始まるものがあれば送信済みとみなす
+      for (final Reference ref in result.items) {
+        if (ref.name.startsWith(userId)) {
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      print('Failed to check feedback in Firebase Storage: $e');
+      return false;
+    }
+  }
 
   /// レポート復元API呼び出し
   Future<JudgeAndReport?> restoreReport({required String userId, required int elementId}) async {

@@ -59,9 +59,10 @@ class MyApp extends StatelessWidget {
                   ? reportsRaw.map((e) => e is JudgeAndReport ? e : JudgeAndReport.fromJson(e as Map<String, dynamic>)).toList()
                   : <JudgeAndReport>[]);
           final reportFutures = args?['reportFutures'] as List<Future<JudgeAndReport>>? ?? [];
+          final onReset = args?['onReset'] as VoidCallback?;
           return MaterialPageRoute(
             builder: (context) => AuthGuard(
-              child: ResultPage(reports: reports, reportFutures: reportFutures),
+              child: ResultPage(reports: reports, reportFutures: reportFutures, onRestartDiagnosis: onReset), // onResetを渡す
             ),
           );
         }

@@ -215,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 48),
               // キャッチコピー
               const Text(
-                'あなたの本当の性格をお教えします',
+                '話して、わかる、あなたの性格。',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 42,
@@ -227,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 16),
               // サブキャッチ
               const Text(
-                '性格に基づいた相談で、自分が気づかなかった本当の自分を理解できる相談エージェント',
+                'AIとの会話による性格診断ツール',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, color: Colors.black54),
               ),

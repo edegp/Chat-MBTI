@@ -8,43 +8,63 @@ import 'package:firebase_auth/firebase_auth.dart';
 class ResultPage extends StatelessWidget {
   final List<JudgeAndReport> reports;
   final List<Future<JudgeAndReport>> reportFutures;
-  const ResultPage({Key? key, required this.reports, required this.reportFutures}) : super(key: key);
+  final VoidCallback? onRestartDiagnosis; // 診断を再開するためのコールバック
+  const ResultPage({
+    Key? key,
+    required this.reports,
+    required this.reportFutures,
+    this.onRestartDiagnosis,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return _ResultPageContent(reports: reports, reportFutures: reportFutures);
+    return _ResultPageContent(
+      reports: reports,
+      reportFutures: reportFutures,
+      onRestartDiagnosis: onRestartDiagnosis,
+    );
   }
 }
-
 
 class _ResultPageContent extends StatefulWidget {
   final VoidCallback? onRestartDiagnosis;
   final List<JudgeAndReport> reports;
   final List<Future<JudgeAndReport>> reportFutures;
-  const _ResultPageContent({Key? key, this.onRestartDiagnosis, required this.reports, required this.reportFutures}) : super(key: key);
+  const _ResultPageContent({
+    Key? key,
+    this.onRestartDiagnosis,
+    required this.reports,
+    required this.reportFutures,
+  }) : super(key: key);
 
   @override
   State<_ResultPageContent> createState() => _ResultPageContentState();
 }
 
 class _ResultPageContentState extends State<_ResultPageContent> {
-  // MBTI要素IDと見出しの対応
-  final List<int> _elementIds = [1, 2, 3, 4];
+  // ...existing code...
+  void _resetReports() {
+    setState(() {
+      _reports.clear();
+      _allReportsLoaded = false;
+      _predLabels.clear();
+      _selectedMbtiType = null;
+      _feedbackSent = false;
+    });
+  }
 
+  final List<int> _elementIds = [1, 2, 3, 4];
   List<JudgeAndReport> get _reports => widget.reports;
   List<Future<JudgeAndReport>> get reportFutures => widget.reportFutures;
   late StreamSubscription _streamSubscription;
-  // final List<JudgeAndReport> _reports = [];
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _feedbackTextController = TextEditingController();
-
   final Map<String, List<String>> _elementToLabels = const {
     'energy': ['I', 'E'],
     'mind': ['N', 'S'],
     'nature': ['F', 'T'],
     'tactics': ['J', 'P'],
   };
-
   final List<String> _mbtiTypeOptions = const [
     'INTJ  建築家',
     'INTP  論理学者',
@@ -63,50 +83,72 @@ class _ResultPageContentState extends State<_ResultPageContent> {
     'ESTP  起業家',
     'ESFP  エンターテイナー',
   ];
-
   final List<String> reportHeadings = const [
     "エネルギーの方向",
     "ものの見方",
     "判断の仕方",
     "外界との接し方",
   ];
-
   bool _feedbackSent = false;
-
-
-
+  bool _hasSentFeedback = false;
+  bool _checkingFeedback = true;
   final ApiService _apiService = ApiService();
   bool _allReportsLoaded = false;
   final List<String> _predLabels = [];
   String? _selectedMbtiType;
-
   @override
   void initState() {
     super.initState();
     _restoreReportsIfNeeded();
+    _checkFeedbackStatus();
+  }
 
+  Future<void> _checkFeedbackStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _hasSentFeedback = false;
+        _checkingFeedback = false;
+      });
+      return;
+    }
+    final userId = user.uid;
+    try {
+      final sent = await _apiService.hasSentFeedback(userId);
+      setState(() {
+        _hasSentFeedback = sent;
+        _feedbackSent = sent;
+        _checkingFeedback = false;
+      });
+    } catch (e) {
+      setState(() {
+        _hasSentFeedback = false;
+        _checkingFeedback = false;
+      });
+    }
   }
 
   Future<void> _restoreReportsIfNeeded() async {
-    // すでにレポートがある場合は何もしない
     if (_reports.isNotEmpty || _allReportsLoaded) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final userId = user.uid;
     List<JudgeAndReport> restored = [];
     for (int i = 0; i < _elementIds.length; i++) {
-      final report = await _apiService.restoreReport(userId: userId, elementId: _elementIds[i]);
+      final report = await _apiService.restoreReport(
+        userId: userId,
+        elementId: _elementIds[i],
+      );
       if (report != null) {
         restored.add(report);
-        if (report.pred_label.isNotEmpty) {
-          _predLabels.add(report.pred_label);
-        }
       }
     }
     if (restored.isNotEmpty) {
       setState(() {
         _reports.clear();
         _reports.addAll(restored);
+        _predLabels.clear();
+        _predLabels.addAll(restored.map((r) => r.pred_label));
         _allReportsLoaded = true;
       });
     }
@@ -131,43 +173,66 @@ class _ResultPageContentState extends State<_ResultPageContent> {
   }
 
   Widget _buildFinalResultBanner() {
-    final String finalType = _predLabels.join();
+    String finalType = _predLabels.join();
+    if (finalType.isEmpty && _reports.isNotEmpty) {
+      finalType = _reports.map((r) => r.pred_label).join();
+    }
     final String displayText = _mbtiTypeOptions.firstWhere(
       (option) => option.startsWith(finalType),
       orElse: () => finalType,
     );
-
     return Container(
       margin: const EdgeInsets.only(bottom: 24.0),
       padding: const EdgeInsets.all(16.0),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
-        borderRadius: BorderRadius.circular(8.0),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: RichText(
         textAlign: TextAlign.center,
         text: TextSpan(
-          style: TextStyle(fontSize: 20, color: Colors.grey[800], height: 1.5),
+          style: const TextStyle(
+            fontSize: 20,
+            color: Colors.black87,
+            height: 1.5,
+          ),
           children: <TextSpan>[
-            const TextSpan(text: 'あなたの性格タイプは\n'),
+            const TextSpan(
+              text: 'あなたの性格タイプは\n',
+              style: TextStyle(
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             TextSpan(
               text: finalType,
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.deepPurple,
+                color: Colors.black,
               ),
             ),
-            const TextSpan(text: '\nであると考えられます'),
+            const TextSpan(
+              text: '\nであると考えられます',
+              style: TextStyle(
+                color: Colors.black54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // 正解ラベルの収集＆フィードバックのウィジット
-  // 送信ボタンを押すとデータがGCSに送信されるようにしたい
   Widget _buildFeedbackSection(BuildContext context) {
     return _FeedbackSection(
       mbtiTypeOptions: _mbtiTypeOptions,
@@ -181,104 +246,120 @@ class _ResultPageContentState extends State<_ResultPageContent> {
 
   @override
   Widget build(BuildContext context) {
-    // 必ずWidgetを返すよう修正
     return Scaffold(
-      appBar: AppBar(title: const Text('診断結果')),
+      backgroundColor: const Color(0xFFFAF9F6),
+      appBar: AppBar(
+        title: const Text('診断結果'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+        iconTheme: const IconThemeData(color: Colors.black),
+      ),
       body: _buildBody(),
     );
   }
-  Widget _buildBody() {
 
-    // 4つ分のスロットを用意し、足りない部分はローディング表示
+  Widget _buildBody() {
     return ListView(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
       children: [
         if (_allReportsLoaded) _buildFinalResultBanner(),
         for (int i = 0; i < 4; i++) ...[
-          Text(
-            reportHeadings.length > i ? reportHeadings[i] : '診断レポート',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.deepPurple),
-          ),
-          const SizedBox(height: 8),
-          if (i < _reports.length)
-            MarkdownBody(data: _reports[i].report)
-          else
-            const Center(child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: CircularProgressIndicator(),
-            )),
-          const SizedBox(height: 24),
-        ],
-        if (_allReportsLoaded && !_feedbackSent)
-          _buildFeedbackSection(context),
-        if (_allReportsLoaded && _feedbackSent) ...[
-          const Center(
-            child: Text(
-              'ご協力ありがとうございました！',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  reportHeadings.length > i ? reportHeadings[i] : '診断レポート',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (i < _reports.length)
+                  MarkdownBody(data: _reports[i].report)
+                else
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 16),
-              ),
-              onPressed: () {
-                Navigator.of(context).pushNamed('/chat'); // ここで診断を再開するためのルートに変更
-              },
-              child: const Text('もう一度診断する'),
-            ),
-          ),
         ],
+        if (_allReportsLoaded)
+          _checkingFeedback
+              ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+              : (!_feedbackSent
+                  ? _buildFeedbackSection(context)
+                  : Column(
+                    children: [
+                      const Center(
+                        child: Text(
+                          'ご協力ありがとうございました！',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepPurple,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                            elevation: 2,
+                          ),
+                          onPressed: () {
+                            _resetReports();
+                            widget.onRestartDiagnosis?.call();
+                            Navigator.of(context).pop(true);
+                          },
+                          child: const Text(
+                            'もう一度診断する',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )),
       ],
     );
-
-    // return ListView(
-    //   controller: _scrollController,
-    //   padding: const EdgeInsets.all(16),
-    //   children: [
-    //     if (_allReportsLoaded) _buildFinalResultBanner(),
-    //     for (int i = 0; i < reports.length; i++) ...[
-    //       Text(
-    //         reportHeadings.length > i ? reportHeadings[i] : '診断レポート',
-    //         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.deepPurple),
-    //       ),
-    //       const SizedBox(height: 8),
-    //       MarkdownBody(data: reports[i].report),
-    //       const SizedBox(height: 24),
-    //     ],
-    //     if (_allReportsLoaded && !_feedbackSent)
-    //       _buildFeedbackSection(context),
-    //     if (_allReportsLoaded && _feedbackSent) ...[
-    //       const Center(
-    //         child: Text(
-    //           'ご協力ありがとうございました！',
-    //           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple),
-    //         ),
-    //       ),
-    //       const SizedBox(height: 24),
-    //       SizedBox(
-    //         width: double.infinity,
-    //         child: ElevatedButton(
-    //           style: ElevatedButton.styleFrom(
-    //             backgroundColor: Colors.deepPurple,
-    //             foregroundColor: Colors.white,
-    //             padding: EdgeInsets.symmetric(vertical: 16),
-    //           ),
-    //           onPressed: () {
-    //             Navigator.of(context).pop(true);
-    //           },
-    //           child: const Text('もう一度診断する'),
-    //         ),
-    //       ),
-    //     ],
-    //   ],
-    // );
   }
 }
 
@@ -327,12 +408,13 @@ class _FeedbackSectionState extends State<_FeedbackSection> {
             hint: const Text('性格タイプを選択'),
             isExpanded: true,
             decoration: const InputDecoration(border: OutlineInputBorder()),
-            items: widget.mbtiTypeOptions.map((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value, overflow: TextOverflow.ellipsis),
-              );
-            }).toList(),
+            items:
+                widget.mbtiTypeOptions.map((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value, overflow: TextOverflow.ellipsis),
+                  );
+                }).toList(),
             onChanged: (String? newValue) {
               widget.onMbtiTypeChanged(newValue);
             },
@@ -351,9 +433,18 @@ class _FeedbackSectionState extends State<_FeedbackSection> {
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                foregroundColor: Colors.white,
+                backgroundColor: Colors.black, // チャット画面と同じ黒色
+                foregroundColor: Colors.white, // 文字色を白
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+                elevation: 2,
               ),
               onPressed: () async {
                 final selectedType = widget.selectedMbtiType ?? '未選択';
@@ -367,13 +458,17 @@ class _FeedbackSectionState extends State<_FeedbackSection> {
                 }
 
                 final timestamp = DateTime.now().millisecondsSinceEpoch;
-                final sanitizedType = selectedType.replaceAll(RegExp(r'\\s+'), '');
+                final sanitizedType = selectedType.replaceAll(
+                  RegExp(r'\\s+'),
+                  '',
+                );
                 final fileName = '${userId}_${timestamp}_$sanitizedType.txt';
 
                 bool uploadSuccess = false;
                 String uploadError = '';
                 try {
-                  final url = await widget.apiService.uploadTextToFirebaseStorage(feedbackText, fileName);
+                  final url = await widget.apiService
+                      .uploadTextToFirebaseStorage(feedbackText, fileName);
                   uploadSuccess = url != null;
                 } catch (e) {
                   uploadError = e.toString();
@@ -381,37 +476,45 @@ class _FeedbackSectionState extends State<_FeedbackSection> {
 
                 showDialog(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(uploadSuccess ? 'フィードバック送信' : '送信エラー'),
-                    content: uploadSuccess
-                        ? Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('ご協力ありがとうございます！'),
-                              const SizedBox(height: 12),
-                              Text('選択タイプ: $selectedType'),
-                              const SizedBox(height: 8),
-                              const Text('自由記述:'),
-                              Text(feedbackText, softWrap: true),
-                            ],
-                          )
-                        : Text('送信に失敗しました: $uploadError'),
-                    actions: [
-                      TextButton(
-                        child: const Text('OK'),
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          if (uploadSuccess) {
-                            widget.onFeedbackSent();
-                          }
-                        },
+                  builder:
+                      (context) => AlertDialog(
+                        title: Text(uploadSuccess ? 'フィードバック送信' : '送信エラー'),
+                        content:
+                            uploadSuccess
+                                ? Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('ご協力ありがとうございます！'),
+                                    const SizedBox(height: 12),
+                                    Text('選択タイプ: $selectedType'),
+                                    const SizedBox(height: 8),
+                                    const Text('自由記述:'),
+                                    Text(feedbackText, softWrap: true),
+                                  ],
+                                )
+                                : Text('送信に失敗しました: $uploadError'),
+                        actions: [
+                          TextButton(
+                            child: const Text(
+                              'OK',
+                              style: TextStyle(color: Colors.black),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              if (uploadSuccess) {
+                                widget.onFeedbackSent();
+                              }
+                            },
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
                 );
               },
-              child: const Text('フィードバックを送信'),
+              child: const Text(
+                'フィードバックを送信',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ),
         ],
