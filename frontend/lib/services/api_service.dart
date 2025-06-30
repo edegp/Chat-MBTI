@@ -75,7 +75,7 @@ class ApiService {
   static const String baseUrl =
       kDebugMode ? 'http://localhost:8000/api/v1' : '/api/v1';
   static const String reportUrl =
-      kDebugMode ? 'https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app/summary' : '/summary';
+      kDebugMode ? String.fromEnvironment('REPORT_URL') : '/summary';
 
     // ここでアップロード機能を追加します
   Future<String?> uploadTextToFirebaseStorage(String text, String fileName) async {

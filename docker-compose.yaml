@@ -21,6 +21,7 @@ services:
       - '3000:3000'
     environment:
       - FLUTTER_WEB_USE_SKIA=true
+      - REPORT_URL=${REPORT_URL}
     restart: unless-stopped
 
   # API Backend
