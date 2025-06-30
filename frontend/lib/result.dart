@@ -305,59 +305,59 @@ class _ResultPageContentState extends State<_ResultPageContent> {
             ),
           ),
         ],
-        if (_allReportsLoaded)
-          _checkingFeedback
-              ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-              : (!_feedbackSent
-                  ? _buildFeedbackSection(context)
-                  : Column(
-                    children: [
-                      const Center(
-                        child: Text(
-                          'ご協力ありがとうございました！',
-                          style: TextStyle(
+        // --- フィードバックはレポートのロード状況に関係なく表示 ---
+        _checkingFeedback
+            ? const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: CircularProgressIndicator(),
+              ),
+            )
+            : (!_feedbackSent
+                ? _buildFeedbackSection(context)
+                : Column(
+                  children: [
+                    const Center(
+                      child: Text(
+                        'ご協力ありがとうございました！',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.black,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          textStyle: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.deepPurple,
+                            letterSpacing: 1.2,
                           ),
+                          elevation: 2,
+                        ),
+                        onPressed: () {
+                          _resetReports();
+                          widget.onRestartDiagnosis?.call();
+                          Navigator.of(context).pop(true);
+                        },
+                        child: const Text(
+                          'もう一度診断する',
+                          style: TextStyle(color: Colors.white),
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                            elevation: 2,
-                          ),
-                          onPressed: () {
-                            _resetReports();
-                            widget.onRestartDiagnosis?.call();
-                            Navigator.of(context).pop(true);
-                          },
-                          child: const Text(
-                            'もう一度診断する',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )),
+                    ),
+                  ],
+                )),
       ],
     );
   }
