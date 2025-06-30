@@ -4,6 +4,7 @@ import 'email_verification_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'services/api_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +15,7 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
+  final ApiService _apiService = ApiService();
   final _auth = FirebaseAuth.instance;
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -23,6 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _startup();
     // Check if user is already logged in
     _checkCurrentUser();
     // Check if the app was opened with a sign-in link
@@ -46,6 +49,19 @@ class _LoginPageState extends State<LoginPage> {
     _email.dispose();
     _password.dispose();
     super.dispose();
+  }
+
+  Future<void> _startup() async {
+    try {
+      // await _apiService.startupSummaryApi(elementId: 1);
+      // await _apiService.startupSummaryApi(elementId: 2);
+      if (!mounted) return;  // ← ここでガード
+      // 必要ならここで setState(...)
+    } catch (e, st) {
+      if (!mounted) return;
+      debugPrintStack(stackTrace: st, label: e.toString());
+      // setState でエラー表示しても OK
+    }
   }
 
   // Check if app was opened with a sign-in link

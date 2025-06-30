@@ -1,16 +1,16 @@
 import asyncio
+import functools
 import torch
 import traceback
 from typing import Optional, Dict
 from logging import getLogger
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from concurrent.futures import ThreadPoolExecutor
-from transformers.integrations.bitsandbytes import validate_bnb_backend_availability
 import transformers
+from vllm import LLM, SamplingParams
 
 logger = getLogger(__name__)
 
-validate_bnb_backend_availability(raise_exception=True)
 transformers.utils.logging.set_verbosity_debug()
 
 
@@ -20,6 +20,7 @@ class GPUModelManager:
     _instances: Dict[str, "GPUModelManager"] = {}
     _executor = ThreadPoolExecutor(max_workers=4)  # ★共有スレッドプール
     _semaphore: asyncio.Semaphore | None = None
+    _locks: Dict[str, asyncio.Lock] = {}  # モデルごとにロック
 
     @classmethod
     def _get_semaphore(cls, parallel=4) -> asyncio.Semaphore:
@@ -28,34 +29,38 @@ class GPUModelManager:
         return cls._semaphore
 
     def __new__(cls, model_name: str):
-        if model_name not in cls._instances:
-            cls._instances[model_name] = super().__new__(cls)
-        return cls._instances[model_name]
+        return cls._instances.setdefault(model_name, super().__new__(cls))
+
+    @classmethod
+    def _get_lock(cls, model_name: str) -> asyncio.Lock:
+        if model_name not in cls._locks:
+            cls._locks[model_name] = asyncio.Lock()
+        return cls._locks[model_name]
 
     def __init__(self, model_name: str):
-        if hasattr(self, "initialized") and self.initialized:
-            return
+        if getattr(self, "initialized", False):
+            return  # すでに初期化済み
 
         self.model_name = model_name
         self.model: Optional[AutoModelForCausalLM] = None
         self.tokenizer: Optional[AutoTokenizer] = None
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = (
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps"
+            if torch.backends.mps.is_available()
+            else "cpu"
+        )
         self.initialized = False
 
-    def load_model(self, use_double_quant: bool = True) -> bool:
-        """GPU最適化されたモデル読み込み"""
-        if self.model is not None and self.tokenizer is not None:
-            logger.info(f"Model {self.model_name} already loaded")
-            return True
+    # ---------- 同期メソッド：実際のロード ----------
 
+    def _load_sync(self, use_double_quant: bool = True) -> bool:
         try:
-            logger.info(f"Loading model {self.model_name} on device: {self.device}")
-
-            # トークナイザーの読み込み
+            logger.info(f"[{self.model_name}] loading on {self.device}")
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
             if self.device == "cuda":
-                # GPU用量子化設定
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_name,
                     torch_dtype=torch.bfloat16,
@@ -63,34 +68,56 @@ class GPUModelManager:
                         load_in_4bit=True,
                         bnb_4bit_quant_type="nf4",
                         bnb_4bit_compute_dtype=torch.bfloat16,
-                        bnb_4bit_use_double_quant=use_double_quant,  # 設定可能
+                        bnb_4bit_use_double_quant=use_double_quant,
                     ),
                     device_map={"": "cuda:0"},
                     low_cpu_mem_usage=True,
                 )
-            else:
-                # CPU フォールバック
+            elif self.device == "mps":
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model_name,
+                    torch_dtype=torch.bfloat16,
+                    device_map={"": "mps"},
+                    low_cpu_mem_usage=True,
+                )
+            else:  # CPU fallback
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_name,
                     torch_dtype=torch.float32,
-                    device_map="cpu",
+                    device_map="auto",
                     cache_dir="/workspace",
                     local_files_only=True,
                 )
 
             self.model.eval()
             self.initialized = True
-            logger.info(f"Model {self.model_name} loaded successfully")
+            logger.info(f"[{self.model_name}] loaded successfully")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load model {self.model_name}: {e}")
+            logger.error(f"[{self.model_name}] load failed: {e}")
             traceback.print_exc()
             return False
 
-    async def load_model_async(self):
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.load_model)
+    # -----------------------------------------------
+
+    # ---------- 非同期 API：呼び出し口 ----------
+
+    async def load_model(self, use_double_quant: bool = True) -> bool:
+        # 既にロード済みなら即返す
+        if self.initialized:
+            return True
+
+        # ★ 同時ロード本数を全体で制限
+        async with self._get_semaphore():
+            lock = self._get_lock(self.model_name)
+            async with lock:
+                if self.initialized:  # ← ダブルチェック
+                    return True
+
+                loop = asyncio.get_running_loop()
+                fn = functools.partial(self._load_sync, use_double_quant)
+                return await loop.run_in_executor(self._executor, fn)
 
     def generate(
         self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.1
@@ -155,3 +182,91 @@ class GPUModelManager:
                 max_new_tokens,
                 temperature,
             )
+
+    # def _load_sync(
+    #     self,
+    #     tensor_parallel_size: int = 1,
+    #     dtype: str = "bfloat16",
+    #     gpu_memory_utilization: float = 0.80,
+    #     quantization: Optional[str] = "bitsandbytes",
+    # ) -> bool:
+    #     """
+    #     vLLM の LLM クラスを初期化してモデルをロードする。
+
+    #     Args:
+    #         tensor_parallel_size: マルチ GPU 使用時の並列数
+    #         dtype: "bfloat16" / "float16" / "float32" など
+    #         gpu_memory_utilization: GPU メモリ使用率の上限（0.0–1.0）
+    #         quantization: "gptq" / "awq" などを指定すると量子化モデルをロード
+    #     """
+    #     try:
+    #         logger.info(f"[{self.model_name}] loading with vLLM…")
+    #         self.llm = LLM(
+    #             model=self.model_name,
+    #             dtype=dtype,
+    #             tensor_parallel_size=tensor_parallel_size,
+    #             gpu_memory_utilization=gpu_memory_utilization,
+    #             quantization=quantization,
+    #             task="generate",
+    #             swap_space=4,
+    #             # trust_remote_code=True,  # HF repo 側の独自コードに対応
+    #         )
+    #         # tokenizer は llm 内部で管理される
+    #         self.initialized = True
+    #         logger.info(f"[{self.model_name}] loaded successfully")
+    #         return True
+
+    #     except Exception as e:
+    #         logger.exception(f"[{self.model_name}] load failed: {e}")
+    #         return False
+
+    # def _generate_sync(
+    #     self,
+    #     prompt: str,
+    #     max_new_tokens: int = 512,
+    #     temperature: float = 0.1,
+    #     top_p: float = 0.95,
+    # ) -> str:
+    #     """
+    #     ブロッキングな推論メソッド。内部使用。
+    #     """
+    #     if not self.initialized or self.llm is None:
+    #         raise RuntimeError("Model not loaded")
+
+    #     params = SamplingParams(
+    #         temperature=temperature,
+    #         top_p=top_p,
+    #         max_tokens=max_new_tokens,
+    #     )
+
+    #     outputs = self.llm.generate(prompt, params)
+    #     return outputs[0].outputs[0].text  # 1 prompt 想定
+
+    # async def generate_async(
+    #     self,
+    #     prompt: str,
+    #     max_new_tokens: int = 512,
+    #     temperature: float = 0.1,
+    #     top_p: float = 0.95,
+    # ) -> str:
+    #     """
+    #     非同期推論メソッド。
+
+    #     Example:
+    #         manager = GPUModelManagerVLLM("meta-llama/Meta-Llama-3-8B-Instruct")
+    #         await manager.load_model()
+    #         result = await manager.generate_async("こんにちは！")
+    #     """
+    #     if not self.initialized:
+    #         raise RuntimeError("Model not loaded. Call load_model() first.")
+
+    #     async with self._get_semaphore():
+    #         loop = asyncio.get_running_loop()
+    #         fn = functools.partial(
+    #             self._generate_sync,
+    #             prompt,
+    #             max_new_tokens,
+    #             temperature,
+    #             top_p,
+    #         )
+    #         return await loop.run_in_executor(self._executor, fn)

@@ -11,6 +11,13 @@
         }
       },
       {
+        "source": "/summary/**",
+        "run": {
+          "serviceId": "mbti-diagnosis-summary",
+          "region": "asia-southeast1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

@@ -85,6 +85,17 @@ CREATE TABLE IF NOT EXISTS user_answers (
 
 CREATE INDEX IF NOT EXISTS user_answers_session_x ON user_answers(question_id);
 
+CREATE TABLE IF NOT EXISTS mbti_reports (
+    id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id         UUID NOT NULL REFERENCES users(id),
+    element_id      INT NOT NULL REFERENCES personality_elements(id),
+    report          TEXT NOT NULL,
+    pred_label      TEXT,
+    gemma_judge     TEXT,
+    gemma_success   BOOLEAN,
+    created_at      TIMESTAMP NOT NULL DEFAULT now()
+);
+
 """
 
 SQL_CONNECTION_NAME = os.getenv("SQL_CONNECTION_NAME")
@@ -252,7 +263,7 @@ def init_postgres(dsn: str = DB_URI) -> None:
 
 @contextmanager
 def create_checkpointer() -> Union[Generator[PostgresSaver, None, None], MemorySaver]:
-    """Generate PostgresSaver from DB_CONNECTION_STRINGget_session_by_user_id. Tables are created automatically on first run."""
+    """Generate PostgresSaver from DB_CONNECTION_STRING. Tables are created automatically on first run."""
     try:
         with get_db_connection() as conn:
             yield PostgresSaver(conn)
@@ -280,7 +291,7 @@ class BaseDBDriver:
 
 
 class ChatSessionDriver(BaseDBDriver):
-    def get_or_create_user(
+    def get_or_create_user_id(
         self, firebase_uid, email=None, display_name=None, photo_url=None
     ) -> str:
         """Get existing user or create a new one based on Firebase auth data"""
@@ -341,7 +352,7 @@ class ChatSessionDriver(BaseDBDriver):
             error.log_error(logger)
             raise error
 
-    def get_session_by_user_id(self, user_id, status="in_progress"):
+    def get_sessions_by_user_id(self, user_id, status: Optional[str] = "in_progress"):
         """Get chat session by user ID."""
         try:
             logger.info(
@@ -351,12 +362,24 @@ class ChatSessionDriver(BaseDBDriver):
 
             with self.get_connection() as conn:
                 with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT id FROM chat_sessions WHERE user_id=%s AND status=%s",
-                        (user_id, status),
+                    if status is None:
+                        logger.info("No status filter applied")
+                        cur.execute(
+                            "SELECT id FROM chat_sessions WHERE user_id=%s",
+                            (user_id,),
+                        )
+                    else:
+                        logger.info(f"Filtering by status: {status}")
+                        # Use parameterized query to prevent SQL injection
+                        cur.execute(
+                            "SELECT id FROM chat_sessions WHERE user_id=%s AND status=%s",
+                            (user_id, status),
+                        )
+
+                    results = cur.fetchall()
+                    session_id = (
+                        [str(result[0]) for result in results] if results else None
                     )
-                    result = cur.fetchone()
-                    session_id = str(result[0]) if result else None
 
                     if session_id:
                         logger.info("Session found", extra={"session_id": session_id})
@@ -534,6 +557,34 @@ class GeneratedQuestionDriver(BaseDBDriver):
             error.log_error(logger)
             raise error
 
+    def find_questions_by_session_id(self, session_id):
+        """Find questions by session ID."""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM generated_questions WHERE session_id=%s",
+                        (session_id,),
+                    )
+                    result = cur.fetchall()
+                    logger.info(
+                        f"Found {len(result)} questions for session {session_id}"
+                    )
+
+                    return result
+
+        except psycopg.Error as e:
+            error = QueryError(
+                "Failed to find questions by session ID",
+                {
+                    "session_id": session_id,
+                    "error_code": e.pgcode,
+                    "error_message": str(e),
+                },
+            )
+            error.log_error(logger)
+            raise error
+
 
 class UserAnswerDriver(BaseDBDriver):
     def post_answer(self, question_id, answer_text):
@@ -558,6 +609,41 @@ class UserAnswerDriver(BaseDBDriver):
                 conn.rollback()
             error = QueryError(
                 "Failed to post user answer",
+                {
+                    "question_id": str(question_id),
+                    "error_code": e.pgcode,
+                    "error_message": str(e),
+                },
+            )
+            error.log_error(logger)
+            raise error
+
+    def get_answer_by_question_id(self, question_id):
+        """Get user answer by question ID."""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT * FROM user_answers WHERE question_id = %s",
+                        (question_id,),
+                    )
+                    result = cur.fetchone()
+                    if result:
+                        logger.info(
+                            "User answer retrieved successfully",
+                            extra={"question_id": str(question_id)},
+                        )
+                        return result
+                    else:
+                        logger.warning(
+                            "No answer found for question ID",
+                            extra={"question_id": str(question_id)},
+                        )
+                        return None
+
+        except psycopg.Error as e:
+            error = QueryError(
+                "Failed to get user answer by question ID",
                 {
                     "question_id": str(question_id),
                     "error_code": e.pgcode,
@@ -636,3 +722,75 @@ class QuestionOptionsDriver(BaseDBDriver):
             )
             error.log_error(logger)
             raise error
+
+
+class MBTIReportDriver(BaseDBDriver):
+    def save_report(
+        self,
+        user_id: str,
+        element_id: int,
+        report: str,
+        pred_label: str = None,
+        gemma_judge: str = None,
+        gemma_success: bool = None,
+    ) -> str:
+        """Save MBTI report to the database and return report id"""
+        import uuid
+
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    report_id = str(uuid.uuid4())
+                    cur.execute(
+                        """
+                        INSERT INTO mbti_reports (id, user_id, element_id, report, pred_label, gemma_judge, gemma_success)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            report_id,
+                            user_id,
+                            element_id,
+                            report,
+                            pred_label,
+                            gemma_judge,
+                            gemma_success,
+                        ),
+                    )
+                    conn.commit()
+                    return report_id
+        except Exception as e:
+            logger.error(f"Failed to save MBTI report: {e}")
+            raise RuntimeError(f"Failed to save MBTI report: {str(e)}")
+
+    def get_reports_by_user_id(self, user_id: str):
+        """Get all MBTI reports for a user, ordered by created_at desc."""
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT id, user_id, element_id, report, pred_label, gemma_judge, gemma_success, created_at
+                        FROM mbti_reports
+                        WHERE user_id = %s
+                        ORDER BY created_at DESC
+                        """,
+                        (user_id,),
+                    )
+                    results = cur.fetchall()
+                    return [
+                        {
+                            "id": row[0],
+                            "user_id": row[1],
+                            "element_id": row[2],
+                            "report": row[3],
+                            "pred_label": row[4],
+                            "gemma_judge": row[5],
+                            "gemma_success": row[6],
+                            "created_at": row[7],
+                        }
+                        for row in results
+                    ]
+        except Exception as e:
+            logger.error(f"Failed to get MBTI reports for user {user_id}: {e}")
+            return []

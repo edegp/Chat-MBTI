@@ -1,3 +1,5 @@
+from ..gateway.repository_gateway import MBTIReportRepositoryGateway
+
 """
 MBTI Conversation Service - Pure Business Logic
 This service contains the core business rules for MBTI conversations
@@ -5,12 +7,14 @@ without dependencies on external frameworks or infrastructure.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List, TypedDict
 from langchain_core.messages import RemoveMessage
 
 from ..port.ports import (
+    MBTIReportRepositoryPort,
     WorkflowPort,
     QuestionRepositoryPort,
+    AnswerRepositoryPort,
     SessionRepositoryPort,
     ElementRepositoryPort,
 )
@@ -26,31 +30,65 @@ from ..exceptions import (
 logger = logging.getLogger(__name__)
 
 
+class Message(TypedDict):
+    """TypedDict for message structure"""
+
+    role: str  # 'user' or 'assistant'
+    content: str  # Message content
+
+
 class MBTIConversationService:
     """Service for managing MBTI conversation business logic"""
 
     # Configurable question/phase counts for standard MBTI
     QUESTIONS_PER_PHASE = 8  # Example: 5 questions per phase (can be changed)
-    NUM_PHASES = 4           # Example: 4 phases (can be changed)
+    NUM_PHASES = 4  # Example: 4 phases (can be changed)
     TOTAL_QUESTIONS = QUESTIONS_PER_PHASE * NUM_PHASES
 
     def __init__(
         self,
         workflow_port: WorkflowPort,
         question_repository: QuestionRepositoryPort,
+        answer_repository: AnswerRepositoryPort,
         session_repository: SessionRepositoryPort,
         elements_repository: ElementRepositoryPort,
+        mbti_report_repository: MBTIReportRepositoryPort,
         data_collection_workflow_port: WorkflowPort = None,
         data_collection_repository: QuestionRepositoryPort = None,
     ):
         self.workflow = workflow_port
         self.question_repository = question_repository
+        self.answer_repository = answer_repository
         self.session_repository = session_repository
         self.elements_repository = elements_repository
-        # Initialize data collection service for business logic
         self.data_collection_service = DataCollectionService(data_collection_repository)
-        # Optional data collection workflow port for different configuration
         self.data_collection_workflow = data_collection_workflow_port or workflow_port
+        self.mbti_report_repository = mbti_report_repository
+        self.QUESTIONS_PER_PHASE = elements_repository.get_question_per_phase()
+        self.TOTAL_QUESTIONS = self.QUESTIONS_PER_PHASE * self.NUM_PHASES
+
+    async def restore_report(self, user_id: str, element_id: int) -> Dict[str, Any]:
+        """Restore MBTI report from the database."""
+        db_user_id = self.session_repository.get_or_create_user_id(user_id)
+        report = self.mbti_report_repository.get_reports_by_user(db_user_id)
+        if not report:
+            return {"status": "error", "message": "No report found for this user."}
+        return [r for r in report if r["element_id"] == element_id][0]
+
+    async def save_report(
+        self,
+        user_id: str,
+        element_id: int,
+        report: str,
+        pred_label: str = None,
+        gemma_judge: str = None,
+        gemma_success: bool = None,
+    ) -> str:
+        """Save MBTI report to the database."""
+        db_user_id = self.session_repository.get_or_create_user_id(user_id)
+        return self.mbti_report_repository.save_report(
+            db_user_id, element_id, report, pred_label, gemma_judge, gemma_success
+        )
 
     def start_conversation(
         self, user_id: str, element_id: int = None
@@ -70,7 +108,10 @@ class MBTIConversationService:
                 self.data_collection_workflow if is_data_collection else self.workflow
             )
 
-            existing_session = self.session_repository.get_session_by_user(user_id)
+            existing_sessions = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )
+            existing_session = existing_sessions[0] if existing_sessions else None
             if existing_session:
                 if is_data_collection:
                     logger.info(
@@ -187,7 +228,10 @@ class MBTIConversationService:
             )
 
             # Business rule: User must have an active session
-            session_id = self.session_repository.get_session_by_user(user_id)
+            session_ids = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )
+            session_id = session_ids[0] if session_ids else None
             if not session_id:
                 raise SessionNotFoundError(
                     "No active session found for user", {"user_id": user_id}
@@ -351,7 +395,9 @@ class MBTIConversationService:
     def get_answer_options(self, user_id: str) -> Dict[str, Any]:
         """Get available answer options for current question"""
         try:
-            session_id = self.session_repository.get_session_by_user(user_id)
+            session_id = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )[0]
             if not session_id:
                 return {
                     "options": [],
@@ -371,12 +417,14 @@ class MBTIConversationService:
                 "status": "error",
             }
 
-    def complete_assessment(self, user_id: str, force: bool= False) -> Dict[str, Any]:
+    def complete_assessment(self, user_id: str, force: bool = False) -> Dict[str, Any]:
         """Complete the MBTI assessment and close session"""
         try:
             logger.info("Completing assessment", extra={"user_id": user_id})
 
-            session_id = self.session_repository.get_session_by_user(user_id)
+            session_id = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )[0]
             if not session_id:
                 raise SessionNotFoundError(
                     "No active session found for user", {"user_id": user_id}
@@ -403,7 +451,9 @@ class MBTIConversationService:
             else:
                 # Standard MBTI assessment requires all questions answered
                 if not force and answered_questions < self.TOTAL_QUESTIONS:
-                    logger.warning(f"{force} {answered_questions} < {self.TOTAL_QUESTIONS}")
+                    logger.warning(
+                        f"{force} {answered_questions} < {self.TOTAL_QUESTIONS}"
+                    )
                     raise AssessmentIncompleteError(
                         f"Assessment incomplete. Only {answered_questions}/{self.TOTAL_QUESTIONS} questions answered.",
                         {
@@ -447,7 +497,9 @@ class MBTIConversationService:
     def get_conversation_progress(self, user_id: str) -> Dict[str, Any]:
         """Get current progress of the conversation"""
         try:
-            session_id = self.session_repository.get_session_by_user(user_id)
+            session_id = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )[0]
             if not session_id:
                 return {
                     "progress": 0.0,
@@ -491,7 +543,9 @@ class MBTIConversationService:
         try:
             logger.info(f"Undoing {steps} step(s)", extra={"user_id": user_id})
 
-            session_id = self.session_repository.get_session_by_user(user_id)
+            session_id = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )[0]
             if not session_id:
                 raise SessionNotFoundError(
                     "No active session found for user", {"user_id": user_id}
@@ -584,7 +638,9 @@ class MBTIConversationService:
     def get_conversation_history(self, user_id: str) -> Dict[str, Any]:
         """Get conversation history for session restoration"""
         try:
-            session_id = self.session_repository.get_session_by_user(user_id)
+            session_id = self.session_repository.get_sessions_by_user(
+                user_id, status="in_progress"
+            )[0]
             if not session_id:
                 return {
                     "history": [],
@@ -630,5 +686,93 @@ class MBTIConversationService:
             return {
                 "history": [],
                 "message": f"Failed to get conversation history: {str(e)}",
+                "status": "error",
+            }
+
+    def get_conversation_histories(
+        self, user_id: str
+    ) -> Dict[str, List[List[Message]]]:
+        """Get complete conversation history for session restoration"""
+        try:
+            session_ids = self.session_repository.get_sessions_by_user(user_id)
+            if not session_ids:
+                logger.warning(
+                    f"No complete sessions found for user {user_id}, returning empty history"
+                )
+                return {
+                    "history": [],
+                    "message": "No complete sessions found",
+                    "status": "error",
+                }
+            session_questions_list = [
+                self.question_repository.find_questions_by_session_id(session_id)
+                for session_id in session_ids
+            ]
+            logger.debug(
+                f"Retrieved {session_questions_list} session question lists for user {user_id}"
+            )
+            logger.info(
+                f"Found {len(session_questions_list)} complete sessions for user {user_id}"
+            )
+            session_messages = {}
+            for questions in session_questions_list:
+                # groupby personality element
+                if not questions:
+                    continue
+                if len(questions) < 5:
+                    logger.warning(
+                        f"Session {session_ids} has less than 5 questions, skipping"
+                    )
+                    continue
+                # groupby personality element
+                for question in questions:
+                    question_id = question[0]
+                    session_id = question[1]
+                    if session_id not in session_messages:
+                        session_messages[session_id] = [[], [], [], []]
+                    logger.debug(
+                        f"Processing question {question_id} for session {session_id}"
+                    )
+                    answer = self.answer_repository.get_answer_by_question_id(
+                        question_id
+                    )
+                    if answer is None:
+                        logger.warning(
+                            f"No answer found for question {question_id} in session {session_id}"
+                        )
+                        continue
+                    user_answer_text = answer[2]
+                    question_text = question[4]
+                    if (
+                        type(question_text) is not str
+                        or type(user_answer_text) is not str
+                    ):
+                        logger.warning(
+                            f"Invalid question format for question {question_id} in session {session_id} - {question_text}, {user_answer_text}"
+                        )
+
+                        continue
+                    message_pair = [
+                        {"role": "assistant", "content": question_text},
+                        {"role": "user", "content": user_answer_text},
+                    ]
+                    if question[2] == 1:
+                        session_messages[session_id][0].extend(message_pair)
+                    elif question[2] == 2:
+                        session_messages[session_id][1].extend(message_pair)
+                    elif question[2] == 3:
+                        session_messages[session_id][2].extend(message_pair)
+                    elif question[2] == 4:
+                        session_messages[session_id][3].extend(message_pair)
+
+            return session_messages
+
+        except Exception as e:
+            logger.error(
+                f"Failed to get complete conversation history for user {user_id}: {e}"
+            )
+            return {
+                "history": [],
+                "message": f"Failed to get complete conversation history: {str(e)}",
                 "status": "error",
             }

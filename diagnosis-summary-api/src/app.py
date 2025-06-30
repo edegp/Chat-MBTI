@@ -1,15 +1,19 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
+from starlette.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 import os
 import json
 import asyncio
+import time
 
 # from main import judge_and_make_report
 from .main import judge_and_make_report
 from . import utils
 from logging import getLogger
+from .gpu_model_manager_vllm import GPUModelManager
+from fastapi.middleware.cors import CORSMiddleware
 
 logger = getLogger(__name__)
 
@@ -17,6 +21,17 @@ app = FastAPI(
     title="judge and make report API",
     description="Gemma/Geminiを使って性格診断とレポートの生成を行うAPI",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # ローカル開発
+        "https://mbti-diagnosis-api-47665095629.asia-northeast1.run.app",  # 本番 (必要に応じて追加)
+    ],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    allow_credentials=True,
 )
 
 
@@ -53,46 +68,53 @@ class StreamResponse(BaseModel):
     gemma_success: bool
 
 
-element_map = ["energy", "mind", "nature", "tactics"]
+element_list = ["energy", "mind", "nature", "tactics"]
+
+generate_report_semaphore = asyncio.Semaphore(4)
 
 
-@app.post("/generate-report")
+async def acquire_report_slot():
+    async with generate_report_semaphore:
+        yield
+
+
+@app.post("/summary/generate-report", dependencies=[Depends(acquire_report_slot)])
 async def generate_report(request: ReportRequest):
-    async def stream_generator():
-        for message in request.messages:
-            if not isinstance(message, Message):
-                logger.error("Invalid message format: %s", message)
-                yield json.dumps({"error": "Invalid message format"}) + "\n"
-                return
+    async with generate_report_semaphore:
+        try:
+            logger.info("Received request to generate report")
+            logger.debug(f"Request data: {request.json()}")
 
-        processor = judge_and_make_report(
-            messages=request.messages,
-            element=element_map[request.element_id],
-            config_path="config.yaml",
-        )
+            for message in request.messages:
+                if not isinstance(message, Message):
+                    logger.error("Invalid message format: %s", message)
+                    return json.dumps({"error": "Invalid message format"}) + "\n"
 
-        if not processor:
-            logger.error("No processors created. Check your input data.")
-            yield json.dumps({"error": "No valid processors available"}) + "\n"
-            return
-        # --- 0) モデルのロード -----------------------------------
-        processor = judge_and_make_report(
-            messages=request.messages,
-            element=request.element_id,
-            config_path="config.yaml",
-        )
-        if not processor.model_manager.initialized:
-            if not await processor.model_manager.load_model_async():
-                logger.error("Failed to load model")
-                yield json.dumps({"error": "モデルの読み込みに失敗しました"}) + "\n"
+            processor = judge_and_make_report(
+                messages=request.messages,
+                element=element_list[request.element_id],
+                config_path="config.yaml",
+            )
 
-        judge, is_success_gemma_judge = await processor.gemma_judge_async()
-        if not is_success_gemma_judge:
-            await processor.gemini_judge_async()
-        report, pred = await processor.make_report_async(judge, is_success_gemma_judge)
+            if not processor:
+                logger.error("No processors created. Check your input data.")
+                return json.dumps({"error": "No valid processors available"}) + "\n"
 
-        yield (
-            json.dumps(
+            if not processor.model_manager.initialized:
+                if not await processor.model_manager.load_model():
+                    logger.error("Failed to load model")
+                    return (
+                        json.dumps({"error": "モデルの読み込みに失敗しました"}) + "\n"
+                    )
+
+            judge, is_success_gemma_judge = await processor.gemma_judge_async()
+            if not is_success_gemma_judge:
+                await processor.gemini_judge_async()
+            report, pred = await processor.make_report_async(
+                judge, is_success_gemma_judge
+            )
+
+            return json.dumps(
                 {
                     "element": processor.element_name,
                     "report": report,
@@ -102,18 +124,16 @@ async def generate_report(request: ReportRequest):
                 },
                 ensure_ascii=False,
             )
-            + "\n"
-        )
+        except Exception as e:
+            logger.error(f"Error generating report: {e}")
+            return json.dumps({"error": "処理中に問題が発生しました"}) + "\n"
 
-    return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
-
-@app.post("/generate-report-stream-batch")
+@app.post("/summary/generate-report-stream-batch")
 async def generate_report_stream(request: ReportStreamRequest):
     async def stream_generator():
         # --- 0) 前処理 ---
         phase_df = utils.read_csv_from_gcs(request.data_path, encoding="utf-8")
-        element_list = ["energy", "mind", "nature", "tactics"]
         messages_list = utils.make_judge_input_list(phase_df)
 
         # --- 1) Processor 生成（4 個固定） ---
@@ -168,7 +188,7 @@ async def generate_report_stream(request: ReportStreamRequest):
     return StreamingResponse(stream_generator(), media_type="application/x-ndjson")
 
 
-@app.post("/generate-report-stream")
+@app.post("/summary/generate-report-stream")
 async def judge_and_make_report_app(request: ReportStreamRequest):
     """
     会話履歴から診断とレポートの作成を行う
@@ -199,7 +219,7 @@ async def judge_and_make_report_app(request: ReportStreamRequest):
                 # 1. judge by gemma
                 try:
                     print("Attempting judgment with Gemma...")
-                    judge, is_success_gemma_judge = processor.gemma_judge()
+                    judge, is_success_gemma_judge = await processor.gemma_judge()
                 except Exception as e:
                     logger.error(f"Gemma judgment failed for {element}: {e}")
                     is_success_gemma_judge = False

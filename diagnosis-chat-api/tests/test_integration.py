@@ -41,7 +41,7 @@ class TestMBTIIntegration:
         mock_create_checkpointer.return_value = mock_checkpointer
 
         # Mock session repository
-        self.mock_session_repo.get_session_by_user.side_effect = [
+        self.mock_session_repo.get_current_session_by_user.side_effect = [
             None,
             session_id,
             session_id,
@@ -114,7 +114,7 @@ class TestMBTIIntegration:
         mock_create_checkpointer.return_value = mock_checkpointer
 
         # Mock repositories
-        self.mock_session_repo.get_session_by_user.return_value = session_id
+        self.mock_session_repo.get_current_session_by_user.return_value = session_id
         self.mock_question_repo.save_question.return_value = "q6_id"
 
         # Mock workflow gateway to return Phase 2 question
@@ -149,7 +149,7 @@ class TestMBTIIntegration:
         session_id = "completion_session_789"
 
         # Mock state with 20 questions completed
-        self.mock_session_repo.get_session_by_user.return_value = session_id
+        self.mock_session_repo.get_current_session_by_user.return_value = session_id
 
         # Mock workflow state to show 20 questions completed
         self.mock_workflow_gateway.get_conversation_state.return_value = {
@@ -173,7 +173,7 @@ class TestMBTIIntegration:
         self.mock_workflow_gateway.execute_conversation_flow.side_effect = RuntimeError(
             "Failed to execute conversation flow: LLM API Error"
         )
-        self.mock_session_repo.get_session_by_user.return_value = None
+        self.mock_session_repo.get_current_session_by_user.return_value = None
         self.mock_session_repo.create_session.return_value = "error_session"
 
         # Act & Assert - Should raise AssessmentError exception

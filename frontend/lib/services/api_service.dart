@@ -31,8 +31,34 @@ class JudgeAndReport {
 }
 
 class ApiService {
+
+  /// レポート復元API呼び出し
+  Future<JudgeAndReport?> restoreReport({required String userId, required int elementId}) async {
+    final headers = await _getHeaders();
+    final response = await http.post(
+      Uri.parse('$baseUrl/report/restore'),
+      headers: headers,
+      body: json.encode({
+        'user_id': userId,
+        'element_id': elementId,
+      }),
+    );
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['status'] == 'success' && data['report'] != null) {
+        return JudgeAndReport.fromJson(data['report']);
+      }
+      return null;
+    } else if (response.statusCode == 404) {
+      return null;
+    } else {
+      throw Exception('Failed to restore report: ${response.statusCode}');
+    }
+  }
   static const String baseUrl =
       kDebugMode ? 'http://localhost:8000/api/v1' : '/api/v1';
+  static const String reportUrl =
+      kDebugMode ? 'https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app/summary' : '/summary';
 
     // ここでアップロード機能を追加します
   Future<String?> uploadTextToFirebaseStorage(String text, String fileName) async {
@@ -177,13 +203,63 @@ class ApiService {
     }
   }
 
+  // Future<String> startupSummaryApi({int elementId = 1}) async {
+  //   debugPrint('Calling startup summary API with elementId: $elementId');
+  //   final headers = await _getHeaders();
+  //   final response = await http.get(
+  //     Uri.parse('$reportUrl/startup?element_id=$elementId'),
+  //     headers: headers,
+  //   );
+
+  //   if (response.statusCode == 200) {
+  //     debugPrint('Startup summary API response ${elementId}: ${response.body}');
+  //     return response.body;
+  //   } else {
+  //     throw Exception('Failed to startup summary API: ${response.statusCode}');
+  //   }
+  // }
+
+  Future<List<JudgeAndReport>> generateReports() async {
+    final headers = await _getHeaders();
+    final response = await http.get(
+      Uri.parse('$baseUrl/generate-reports'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      final List<JudgeAndReport> data =
+        List<JudgeAndReport>.from(jsonDecode(response.body));
+      return data;
+    } else {
+      throw Exception('Failed to generate report: ${response.statusCode}');
+    }
+  }
+
+  Future<JudgeAndReport> generateReport(int elementId) async {
+    debugPrint('Calling generate report API with elementId: $elementId');
+    final headers = await _getHeaders();
+    final response = await http.get(
+      Uri.parse('$baseUrl/generate-report?element_id=$elementId'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      JudgeAndReport data =
+          JudgeAndReport.fromJson(jsonDecode(response.body));
+      debugPrint('Generate report API response: $data');
+      return data;
+    } else {
+      throw Exception('Failed to generate report: ${response.statusCode}');
+    }
+  }
+
   Stream<String> fetchReportStreamFromApi() async* {
     try {
       // サーバーのAPIエンドポイントにリクエストを送信
       final request = http.Request(
         'GET',
         Uri.parse(
-          'https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app/generate-report-stream',
+          '$reportUrl/generate-report-stream',
         ),
       );
       final response = await http.Client().send(request);

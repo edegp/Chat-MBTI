@@ -2,11 +2,15 @@
 FastAPI routes for MBTI conversation API using new architecture
 """
 
+import asyncio
+import json
+import os
 from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel
 import logging
 from typing import Optional
 from fastapi.responses import JSONResponse
+import httpx
 
 # Import controller directly to avoid circular imports
 from src.controller.mbti_controller import (
@@ -257,8 +261,10 @@ async def get_progress(
         error.log_error(logger)
         raise error
 
+
 class CompleteAssessmentRequest(BaseModel):
     force: bool = False
+
 
 @router.post("/conversation/complete")
 async def complete_assessment(
@@ -333,6 +339,201 @@ async def get_conversation_history(
         )
         error.log_error(logger)
         raise error
+
+
+class GenerateReport(BaseModel):
+    messages: list[dict]  # List of message dictionaries
+    element_id: int  # MBTI element id (1=energy, 2=..., 4=tactics)
+
+
+@router.get("/generate-report")
+async def proxy_generate_report(
+    element_id: int = Query(...),
+    controller: MBTIController = Depends(get_mbti_controller),
+    current_user: dict = Depends(get_current_user),
+):
+    """Proxy endpoint to generate MBTI report"""
+    user_id = current_user.get("uid")
+    if not user_id:
+        raise AuthenticationError("User ID not found in request messages")
+    conversation_histories = await controller.get_conversation_histories(user_id)
+    messages = []
+    for session_id in conversation_histories.keys():
+        logger.debug(
+            f"Processing session {session_id} with element_id {conversation_histories[session_id]}"
+        )
+        if len(conversation_histories[session_id]) < element_id:
+            logger.warning(
+                f"No messages found for element {element_id} in session {session_id}, skipping report generation"
+            )
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": f"No messages found for element {element_id} in session {session_id}"
+                },
+            )
+        messages.extend(conversation_histories[session_id][element_id - 1])
+        logger.debug(f"Processing session {session_id} with {messages} messages")
+
+    logger.debug(f"Generating report for user {user_id} with element {element_id}")
+    # diagnosis-summary-api のURL（docker-composeならサービス名でOK）
+    summary_api_url = os.path.join(
+        "https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app",
+        "summary",
+        "generate-report",
+    )
+    logger.debug(f"Summary API URL: {summary_api_url}")
+
+    request_data = GenerateReport(
+        messages=messages[-20:],  # Use the latest 20 messages
+        element_id=element_id - 1,
+    )
+
+    # Send request to summary API
+    async with httpx.AsyncClient(timeout=10000) as client:
+        response = await client.post(summary_api_url, json=request_data.dict())
+
+    if response.status_code != 200:
+        logger.error(
+            f"Failed to generate report: {response.status_code} {response.text}"
+        )
+        raise HTTPException(
+            status_code=response.status_code, detail="Failed to generate report"
+        )
+
+    data = response.json()
+    if isinstance(data, str):
+        data = json.loads(data)
+    logger.debug(f"Report data received: {data}")
+    # レポートをDBに保存
+    try:
+        await controller.save_report(
+            user_id=user_id,
+            element_id=element_id,
+            report=data.get("report"),
+            pred_label=data.get("pred_label"),
+            gemma_judge=data.get("gemma_judge"),
+            gemma_success=data.get("gemma_success"),
+        )
+        logger.info(f"MBTI report saved for user {user_id}, element {element_id}")
+    except Exception as e:
+        logger.error(f"Failed to save MBTI report: {e}")
+
+    return JSONResponse(content=data, status_code=200)
+
+
+@router.get("/generate-reports")
+async def proxy_generate_reports(
+    controller: MBTIController = Depends(get_mbti_controller),
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user.get("uid")
+    if not user_id:
+        raise AuthenticationError("User ID not found in authentication token")
+
+    conversation_histories = await controller.get_conversation_histories(user_id)
+    logger.debug(
+        f"Retrieved conversation histories for user {user_id}: {conversation_histories}"
+    )
+    logger.info(
+        f"Generating report for user {user_id} with {len(conversation_histories)} complete sessions"
+    )
+    # diagnosis-summary-api のURL（docker-composeならサービス名でOK）
+    summary_api_url = os.path.join(
+        os.getenv("SUMMARY_API_URL"), "summary", "generate-report"
+    )
+    logger.debug(f"Summary API URL: {summary_api_url}")
+    element_messages = [[], [], [], []]  # [energy, mind, nature, tactics]
+    for session_id in conversation_histories.keys():
+        messages = conversation_histories[session_id]
+        logger.debug(f"Processing session {session_id} with {messages} messages")
+        element_messages[0].extend(messages[0])
+        element_messages[1].extend(messages[1])
+        element_messages[2].extend(messages[2])
+        element_messages[3].extend(messages[3])
+    # 各要素ごとにリクエストを送信
+    tasks = []
+    for i, messages in enumerate(element_messages):
+        if not messages:
+            logger.warning(
+                f"No messages found for element {i + 1}, skipping report generation {messages}"
+            )
+            tasks.append({"element_id": i + 1, "error": "No messages found"})
+            continue
+        target_messages = messages[-20:]  # 最新の20メッセージを使用
+        logger.debug(f"Preparing request for element {i + 1} with {messages} messages")
+        logger.info(
+            f"Generating report for element {i + 1} with {len(messages)} messages"
+        )
+        request_data = GenerateReport(messages=target_messages, element_id=i + 1)
+        tasks.append(request_data)
+
+    # すべてのリクエストを並行して送信
+    responses = []
+    if tasks:
+        async with httpx.AsyncClient(timeout=10000) as client:
+            coros = []
+            for request_data in tasks:
+                if isinstance(request_data, dict):
+                    # Skip if no messages found
+                    logger.warning(
+                        f"Skipping report generation for element {request_data['element_id']}: {request_data['error']}"
+                    )
+                    coros.append(asyncio.create_task(ValueError("No messages found")))
+                    continue
+                logger.debug(f"Sending request for element {request_data.element_id}")
+                coros.append(
+                    client.post(summary_api_url, json=request_data.dict(), timeout=3000)
+                )
+                await asyncio.sleep(3)  # 少し待機してリクエストを分散
+            responses = await asyncio.gather(*coros, return_exceptions=True)
+
+    # Collect results and handle errors
+    result_list = []
+    for resp in responses:
+        if isinstance(resp, Exception):
+            result_list.append({"error": str(resp)})
+        else:
+            try:
+                result_list.append(resp.json())
+            except Exception as e:
+                result_list.append({"error": f"Failed to parse response: {str(e)}"})
+
+    return JSONResponse(status_code=200, content={"results": result_list})
+
+
+# --- レポート復元用リクエストモデル ---
+class RestoreReportRequest(BaseModel):
+    user_id: str
+    element_id: int
+
+
+# --- レポート復元API ---
+@router.post("/report/restore")
+async def restore_report(
+    request: RestoreReportRequest,
+    controller: MBTIController = Depends(get_mbti_controller),
+):
+    """指定ユーザー・要素のレポートを復元（取得）するAPI"""
+    try:
+        logger.info(
+            f"Restoring report for user {request.user_id} and element {request.element_id}"
+        )
+        report = await controller.restore_report(
+            user_id=request.user_id, element_id=request.element_id
+        )
+        logger.debug(f"Report restored: {request.element_id} {report}")
+        if not report:
+            return JSONResponse(
+                status_code=404,
+                content={"status": "not_found", "message": "Report not found"},
+            )
+        return {"status": "success", "report": report}
+    except Exception as e:
+        logger.error(f"Error restoring report: {e}")
+        return JSONResponse(
+            status_code=500, content={"status": "error", "message": str(e)}
+        )
 
 
 @router.get("/health")

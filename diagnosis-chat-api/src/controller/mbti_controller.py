@@ -10,8 +10,10 @@ from ..usecase.data_collection_service import DataCollectionService
 from ..gateway.llm_gateway import LLMGateway
 from ..gateway.repository_gateway import (
     QuestionRepositoryGateway,
+    AnswerRepositoryGateway,
     SessionRepositoryGateway,
     ElementRepositoryGateway,
+    MBTIReportRepositoryGateway,
     DataCollectionRepositoryGateway,
 )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -50,6 +52,34 @@ class MBTIController:
     ):
         self.mbti_service = mbti_service
         self.data_collection_service = data_collection_service
+
+    async def restore_report(self, user_id: str, element_id: int) -> Dict[str, Any]:
+        """Restore MBTI report from the database."""
+        if not user_id:
+            error = InvalidInputError("User ID is required")
+            error.log_error(logger)
+            return create_error_response(error)
+
+        if element_id is None:
+            error = InvalidInputError("Element ID is required")
+            error.log_error(logger)
+            return create_error_response(error)
+
+        return await self.mbti_service.restore_report(user_id, element_id)
+
+    async def save_report(
+        self,
+        user_id: str,
+        element_id: int,
+        report: str,
+        pred_label: str = None,
+        gemma_judge: str = None,
+        gemma_success: bool = None,
+    ) -> str:
+        """Save MBTI report to the database."""
+        return await self.mbti_service.save_report(
+            user_id, element_id, report, pred_label, gemma_judge, gemma_success
+        )
 
     async def start_conversation(
         self, request: StartConversationRequest
@@ -260,6 +290,37 @@ class MBTIController:
             error = MBTIApplicationError("Internal server error")
             return create_error_response(error)
 
+    async def get_conversation_histories(self, user_id: str) -> Dict[str, Any]:
+        """Get conversation history endpoint"""
+        logger.info(f"Getting conversation history for user: {user_id}")
+
+        if not user_id:
+            error = InvalidInputError("User ID is required")
+            error.log_error(logger)
+            error_response = create_error_response(error)
+            error_response["history"] = []  # 追加フィールド
+            return error_response
+
+        try:
+            result = self.mbti_service.get_conversation_histories(user_id)
+            logger.info(
+                f"Conversation history retrieved successfully for user: {user_id}"
+            )
+            return result
+        except MBTIApplicationError as e:
+            e.log_error(logger)
+            error_response = create_error_response(e)
+            error_response["history"] = []  # 追加フィールド
+            return error_response
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while getting conversation history for user {user_id}: {e}"
+            )
+            error = MBTIApplicationError("Internal server error")
+            error_response = create_error_response(error)
+            error_response["history"] = []  # 追加フィールド
+            return error_response
+
     async def get_conversation_history(self, user_id: str) -> Dict[str, Any]:
         """Get conversation history endpoint"""
         logger.info(f"Getting conversation history for user: {user_id}")
@@ -355,30 +416,37 @@ class MBTIController:
             return create_error_response(error)
 
 
-
 def get_mbti_controller() -> MBTIController:
     """Dependency injection for MBTIController"""
     # Create dependencies
     llm_gateway = LLMGateway()
     question_repo = QuestionRepositoryGateway()
+    answer_repo = AnswerRepositoryGateway()  # Assuming this is defined
     session_repo = SessionRepositoryGateway()
     elements_repo = ElementRepositoryGateway()
+    mbti_report_repo = MBTIReportRepositoryGateway()
 
     # 通常API用: 1フェーズ5問
-    langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo, questions_per_phase=5)
+    langgraph_driver = LangGraphDriver(
+        llm_gateway, question_repo, answer_repo, elements_repo
+    )
     workflow_gateway = WorkflowGateway(langgraph_driver)
     data_collection_repo = DataCollectionRepositoryGateway()
 
     # データ収集用: 1フェーズ10問
-    data_collection_langgraph_driver = LangGraphDriver(llm_gateway, question_repo, elements_repo, questions_per_phase=10)
+    data_collection_langgraph_driver = LangGraphDriver(
+        llm_gateway, question_repo, answer_repo, elements_repo, questions_per_phase=10
+    )
     data_collection_workflow_gateway = WorkflowGateway(data_collection_langgraph_driver)
 
     # Create service
     mbti_service = MBTIConversationService(
         workflow_port=workflow_gateway,
         question_repository=question_repo,
+        answer_repository=answer_repo,
         session_repository=session_repo,
         elements_repository=elements_repo,
+        mbti_report_repository=mbti_report_repo,
         data_collection_repository=data_collection_repo,
         data_collection_workflow_port=data_collection_workflow_gateway,
     )

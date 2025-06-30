@@ -9,7 +9,12 @@ from typing import Dict, Any, List
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from ..port.ports import LLMPort, QuestionRepositoryPort, ElementRepositoryPort
+from ..port.ports import (
+    AnswerRepositoryPort,
+    LLMPort,
+    QuestionRepositoryPort,
+    ElementRepositoryPort,
+)
 from ..usecase.type import ChatState, Message
 from ..usecase.utils import _organize_chat_history
 from ..driver.db import create_checkpointer
@@ -19,7 +24,6 @@ from ..exceptions import (
     LLMTimeoutError,
     WorkflowError,
     QuestionGenerationError,
-    InvalidResponseError,
 )
 
 logger = logging.getLogger(__name__)
@@ -128,13 +132,19 @@ class LangGraphDriver:
         self,
         llm_port: LLMPort,
         question_repository: QuestionRepositoryPort,
+        answer_repository: AnswerRepositoryPort,
         elements_repository: ElementRepositoryPort,
-        questions_per_phase: int = 8,  # Configurable for different use cases (default 10)
+        questions_per_phase: int = None,
     ):
         self.llm_port = llm_port
         self.question_repository = question_repository
+        self.answer_repository = answer_repository
         self.elements_repository = elements_repository
-        self.questions_per_phase = questions_per_phase  # Store configuration
+        self.questions_per_phase = (
+            self.elements_repository.get_question_per_phase()
+            if questions_per_phase is None
+            else questions_per_phase
+        )
         try:
             self.graph_builder = self._create_graph()
             logger.info("LangGraphDriver initialized successfully")
@@ -267,7 +277,7 @@ class LangGraphDriver:
             # Save answer if we have one
             if len(state["messages"]) > 0 and order > 0:
                 answer_text = state["messages"][-1].content
-                self.question_repository.save_answer(qid, answer_text)
+                self.answer_repository.save_answer(qid, answer_text)
 
             # Create new message
             new_message = Message(role="assistant", content=question)

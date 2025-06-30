@@ -10,6 +10,7 @@ import 'auth_guard.dart';
 import 'package:flutter/material.dart';
 import 'home.dart';
 import 'result.dart';
+import 'services/api_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,9 +46,26 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (ctx) => const LoginPage(),
         '/chat': (ctx) => const AuthGuard(child: FriendlyChatPage()),
-        '/result': (ctx) => const AuthGuard(child: ResultPage()),
         '/data-collection': (ctx) => const DataCollectionPage(),
         // '/resetpassword': (ctx) => const ResetPasswordPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/result') {
+          final args = settings.arguments as Map<String, dynamic>?;
+          final reportsRaw = args?['reports'] ?? [];
+          final reports = reportsRaw is List<JudgeAndReport>
+              ? reportsRaw
+              : (reportsRaw is List
+                  ? reportsRaw.map((e) => e is JudgeAndReport ? e : JudgeAndReport.fromJson(e as Map<String, dynamic>)).toList()
+                  : <JudgeAndReport>[]);
+          final reportFutures = args?['reportFutures'] as List<Future<JudgeAndReport>>? ?? [];
+          return MaterialPageRoute(
+            builder: (context) => AuthGuard(
+              child: ResultPage(reports: reports, reportFutures: reportFutures),
+            ),
+          );
+        }
+        return null; // ルートが見つからない場合はnullを返す
       },
     );
   }

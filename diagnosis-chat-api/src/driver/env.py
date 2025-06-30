@@ -27,8 +27,12 @@ class ElementsDriver:
     """Driver to access elements from the environment variables."""
 
     def __init__(self):
-        elements = get_elements()
-        self.elements = [elements[k] for k in elements.keys()]
+        self.env = get_elements()
+        self.elements = [self.env[k] for k in self.env.keys()]
+
+    def get_question_per_phase(self) -> int:
+        """Get the number of questions per phase."""
+        return self.env.get("question_per_phase", 10)
 
     def get_element(self, element_id: int) -> dict:
         """Get element by ID."""

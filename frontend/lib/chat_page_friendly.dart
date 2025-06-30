@@ -15,13 +15,16 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   final ApiService _apiService = ApiService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final List<JudgeAndReport> _reports = [];
+  late Future<JudgeAndReport> _reportFuture;
+  List<Future<JudgeAndReport>> _reportFutures = [];
   String? _currentQuestion;
   List<String> _currentOptions = [];
   List<Map<String, dynamic>> _chatHistory = [];
   double _progress = 0.0;
   int _questionNumber = 1;
-  int _phase_per_question = 8; // 各フェーズの質問数（例: 8問）
-  int _totalQuestions = 8 * 4;
+  int _phase_per_question = 10; // 各フェーズの質問数（例: 8問）
+  int _totalQuestions = 10 * 4;
   String? _sessionId;
   bool _isLoading = false;
   String? _error;
@@ -47,6 +50,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   @override
   void initState() {
     super.initState();
+    // _startup();
     _isCompleted = false; // ← 追加: 初期化時に必ずリセット
     _bubbleAnimController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -57,6 +61,18 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       vsync: this,
     );
     _checkExistingConversation();
+  }
+
+  Future<void> _startup() async {
+    try {
+      // await _apiService.startupSummaryApi(elementId: 3);
+      if (!mounted) return;  // ← ここでガード
+      // 必要ならここで setState(...)
+    } catch (e, st) {
+      if (!mounted) return;
+      debugPrintStack(stackTrace: st, label: e.toString());
+      // setState でエラー表示しても OK
+    }
   }
 
   // 既存の会話をチェックして、続きから開始するか新しい会話を始める
@@ -235,11 +251,23 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
       if (data['phase'] == 'question') {
         final newQuestionNumber = data['question_number'] ?? 1;
-        final newPhase = ((newQuestionNumber - 1) ~/ 8) + 1;
+        final newPhase = ((newQuestionNumber - 1) ~/ _phase_per_question) + 1;
 
-        // Check if we need to transition to a new phase (every 10 questions)
+        // Check if we need to transition to a new phase (every _phase_per_question questions)
         if (newPhase > _currentPhase) {
           // Clear history when entering a new phase
+          _reportFuture = _apiService.generateReport(_currentPhase);
+          _reportFuture.then((report_json) {
+            if (!mounted) return;
+            setState(() {
+              _reports.add(report_json);
+            });
+          });
+          _reportFutures.add(_reportFuture);
+          // if (_currentPhase == 1) {
+          //   final future_startup = _apiService.startupSummaryApi(elementId: 4);
+          // }
+
           setState(() {
             _chatHistory.clear();
             _currentPhase = newPhase;
@@ -249,7 +277,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Phase $_currentPhase開始 (質問 ${(newPhase-1)*10 + 1}-${newPhase*10})'),
+                content: Text('Phase $_currentPhase開始 (質問 ${(newPhase-1)*_phase_per_question + 1}-${newPhase*_phase_per_question})'),
                 backgroundColor: Colors.green,
                 duration: const Duration(seconds: 2),
               ),
@@ -288,11 +316,21 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         await _getOptions();
         _scrollToBottom();
       } else if (data['phase'] == 'diagnosis') {
-        setState(() {
-          _isCompleted = true;
-          _completionMessage = data['message'];
-          _isLoading = false;
-        });
+          _reportFuture = _apiService.generateReport(_currentPhase);
+          _reportFuture.then((report_json) {
+            if (!mounted) return;
+            setState(() {
+              _reports.add(report_json);
+            });
+          });
+          _reportFutures.add(_reportFuture);
+          // show loading dot
+          setState(() {
+            _isLoading = false;
+            _isCompleted = true;
+            _completionMessage = data['message'];
+            _isLoading = false;
+          });
       }
     } catch (e) {
       setState(() {
@@ -497,7 +535,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           children: [
             _buildSimpleAppBar(),
             Expanded(
-              child: _isCompleted ? _buildCompletionView() : _buildChatView(),
+              child: !_isLoading ? _buildCompletionView() : _buildChatView(),
             ),
           ],
         ),
@@ -602,7 +640,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       _chatHistory = [];
       _progress = 0.0;
       _questionNumber = 1;
-      _totalQuestions = 8 * 4;
+      _totalQuestions = 10 * 4;
       _sessionId = null;
       _isLoading = false;
       _error = null;
@@ -676,7 +714,10 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
                   _buildInputArea(),
 
                 // ローディング
-                if (_isLoading) _buildLoading(),
+                if (_isLoading && !_isCompleted) _buildLoading(),
+
+                // 性格診断ローディング
+                if (_isCompleted && _completionMessage == null) _buildDiagnosisLoading(),
 
                 // 履歴復元中インジケーター
                 if (_isRestoringHistory) _buildRestoringIndicator(),
@@ -685,6 +726,28 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildDiagnosisLoading() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '性格診断を生成中...',
+              style: TextStyle(fontSize: 16, color: Colors.black54),
+            ),
+            const SizedBox(height: 8),
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+              strokeWidth: 2,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1184,7 +1247,10 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
   Widget _buildCompletionView() {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final result = await Navigator.of(context).pushNamed("/result");
+      final result = await Navigator.of(context).pushNamed("/result", arguments: {
+        'reports': _reports,
+        'reportFutures': _reportFutures,
+      });
       if (result == true) {
         _resetChat();
       }

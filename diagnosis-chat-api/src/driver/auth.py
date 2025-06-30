@@ -25,7 +25,7 @@ async def get_firebase_user(credentials: HTTPAuthorizationCredentials):
     """Firebase認証トークンを検証し、ユーザー情報を返す"""
     try:
         token = credentials.credentials
-        print(f"Received token: {token[:50]}..." if len(token) > 50 else token)
+        print(f"Received token: {token}..." if len(token) > 50 else token)
         # Add clock skew tolerance of 10 seconds
         decoded_token = firebase_auth.verify_id_token(token, clock_skew_seconds=10)
         print(

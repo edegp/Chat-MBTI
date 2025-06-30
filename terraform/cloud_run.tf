@@ -207,7 +207,7 @@ resource "google_cloud_run_v2_service" "service" {
     node_selector {
       accelerator = "nvidia-l4"
     }
-    max_instance_request_concurrency = 1
+    max_instance_request_concurrency = 6
     gpu_zonal_redundancy_disabled    = true
     # -------------------------
     #  Container definition
@@ -224,10 +224,6 @@ resource "google_cloud_run_v2_service" "service" {
       env {
         name  = "HF_HOME"
         value = "/workspace"
-      }
-      env {
-        name  = "HF_HUB_OFFLINE"
-        value = "1"
       }
       env {
         name = "GEMINI_API_KEY"
@@ -260,7 +256,7 @@ resource "google_cloud_run_v2_service" "service" {
       min_instance_count = var.diagnosis_summary.min_instances
       max_instance_count = var.diagnosis_summary.max_instances
     }
-    timeout = "1200s"
+    timeout = "1800s"
     labels = {
       # 必要に応じてラベルを追加
       "managed-by" = "gcp-cloud-build-deploy-summary-api"

@@ -62,14 +62,32 @@ class QuestionRepositoryPort(ABC):
         """Get question by session ID and display order"""
         pass
 
+    def find_questions_by_session_id(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Find questions by session ID and display order"""
+        pass
+
+
+class AnswerRepositoryPort(ABC):
+    """Abstract interface for user answer operations"""
+
     @abstractmethod
     def save_answer(self, question_id: str, answer_text: str) -> None:
         """Save user answer to question"""
         pass
 
+    @abstractmethod
+    def get_answer_by_question_id(self, question_id: str) -> Optional[str]:
+        """Get user answer by question ID"""
+        pass
+
 
 class SessionRepositoryPort(ABC):
     """Abstract interface for session management"""
+
+    @abstractmethod
+    def get_or_create_user_id(self, firebase_uid: str) -> str:
+        """Get or create user with Firebase UID and return database user ID"""
+        pass
 
     @abstractmethod
     def create_session(self, user_id: str) -> str:
@@ -81,7 +99,7 @@ class SessionRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def get_session_by_user(self, user_id: str) -> Optional[str]:
+    def get_sessions_by_user(self, user_id: str, status: str = None) -> Optional[str]:
         """Get active session ID for user
 
         Args:
@@ -104,6 +122,11 @@ class ElementRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    def get_question_per_phase(self) -> int:
+        """Get number of questions per phase"""
+        pass
+
+    @abstractmethod
     def get_elements(self) -> List[Dict[str, Any]]:
         """Get all personality elements"""
         pass
@@ -123,6 +146,22 @@ class DataCollectionRepositoryPort(ABC):
         pass
 
 
+class MBTIReportRepositoryPort(ABC):
+    """Abstract interface for report data operations"""
+
+    @abstractmethod
+    def save_report(
+        self, user_id: str, element_id: int, report: str, pred_label: str = None
+    ) -> None:
+        """Save MBTI report for a user"""
+        pass
+
+    @abstractmethod
+    def get_reports_by_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch all MBTI reports for a user"""
+        pass
+
+
 __all__ = [
     "LLMPort",
     "WorkflowPort",
@@ -130,4 +169,5 @@ __all__ = [
     "SessionRepositoryPort",
     "ElementRepositoryPort",
     "DataCollectionRepositoryPort",
+    "MBTIReportRepositoryPort",
 ]

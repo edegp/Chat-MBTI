@@ -13,6 +13,7 @@ from ..port.ports import (
 from ..driver.db import GeneratedQuestionDriver, UserAnswerDriver, ChatSessionDriver
 from ..driver.env import ElementsDriver
 from ..driver.gcs import GCSDriver
+from ..driver.db import MBTIReportDriver
 
 
 class QuestionRepositoryGateway(QuestionRepositoryPort):
@@ -48,6 +49,25 @@ class QuestionRepositoryGateway(QuestionRepositoryPort):
         except Exception as e:
             raise RuntimeError(f"Failed to get question: {str(e)}")
 
+    def find_questions_by_session_id(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Find questions by session ID and display order"""
+        try:
+            questions = self.question_driver.find_questions_by_session_id(
+                session_id=session_id
+            )
+            if questions:
+                return questions
+            return None
+        except Exception as e:
+            raise RuntimeError(f"Failed to find questions: {str(e)}")
+
+
+class AnswerRepositoryGateway:
+    """Gateway implementation for user answer operations"""
+
+    def __init__(self):
+        self.answer_driver = UserAnswerDriver()
+
     def save_answer(self, question_id: str, answer_text: str) -> None:
         """Save user answer to question"""
         try:
@@ -57,6 +77,14 @@ class QuestionRepositoryGateway(QuestionRepositoryPort):
         except Exception as e:
             raise RuntimeError(f"Failed to save answer: {str(e)}")
 
+    def get_answer_by_question_id(self, question_id: str) -> Optional[str]:
+        """Get user answer by question ID"""
+        try:
+            answer = self.answer_driver.get_answer_by_question_id(question_id)
+            return answer
+        except Exception as e:
+            raise RuntimeError(f"Failed to get answer: {str(e)}")
+
 
 class SessionRepositoryGateway(SessionRepositoryPort):
     """Gateway implementation for session management operations"""
@@ -64,21 +92,30 @@ class SessionRepositoryGateway(SessionRepositoryPort):
     def __init__(self):
         self.session_driver = ChatSessionDriver()
 
+    def get_or_create_user_id(self, firebase_uid: str) -> str:
+        """Get or create user with Firebase UID and return database user ID"""
+        try:
+            return self.session_driver.get_or_create_user_id(firebase_uid)
+        except Exception as e:
+            raise RuntimeError(f"Failed to get or create user: {str(e)}")
+
     def create_session(self, user_id: str) -> str:
         """Create new chat session and return session ID"""
         try:
             # First get or create user with Firebase UID
-            db_user_id = self.session_driver.get_or_create_user(user_id)
+            db_user_id = self.session_driver.get_or_create_user_id(user_id)
             return self.session_driver.create_session(db_user_id)
         except Exception as e:
             raise RuntimeError(f"Failed to create session: {str(e)}")
 
-    def get_session_by_user(self, user_id: str) -> Optional[str]:
+    def get_sessions_by_user(self, user_id: str, status: str = None) -> Optional[str]:
         """Get active session ID for user"""
         try:
             # First get or create user with Firebase UID
-            db_user_id = self.session_driver.get_or_create_user(user_id)
-            return self.session_driver.get_session_by_user_id(db_user_id)
+            db_user_id = self.session_driver.get_or_create_user_id(user_id)
+            return self.session_driver.get_sessions_by_user_id(
+                db_user_id, status=status
+            )
         except Exception as e:
             raise RuntimeError(f"Failed to get session: {str(e)}")
 
@@ -102,6 +139,13 @@ class ElementRepositoryGateway(ElementRepositoryPort):
             return self.element_driver.get_element_info(element_id)
         except Exception as e:
             raise RuntimeError(f"Failed to get element info: {str(e)}")
+
+    def get_question_per_phase(self) -> int:
+        """Get number of questions per phase"""
+        try:
+            return self.element_driver.get_question_per_phase()
+        except Exception as e:
+            raise RuntimeError(f"Failed to get question per phase: {str(e)}")
 
     def get_elements(self) -> List[Dict[str, Any]]:
         """Get all personality elements"""
@@ -142,3 +186,33 @@ class DataCollectionRepositoryGateway:
             return uploaded_blob
         except Exception as e:
             raise RuntimeError(f"Failed to upload data: {str(e)}")
+
+
+class MBTIReportRepositoryGateway:
+    """Gateway implementation for MBTI report operations"""
+
+    def __init__(self):
+        self.report_driver = MBTIReportDriver()
+
+    def save_report(
+        self,
+        user_id: str,
+        element_id: int,
+        report: str,
+        pred_label: str = None,
+        gemma_judge: str = None,
+        gemma_success: bool = None,
+    ) -> str:
+        """Save MBTI report to the database and return report id"""
+        return self.report_driver.save_report(
+            user_id=user_id,
+            element_id=element_id,
+            report=report,
+            pred_label=pred_label,
+            gemma_judge=gemma_judge,
+            gemma_success=gemma_success,
+        )
+
+    def get_reports_by_user(self, user_id: str) -> Optional[dict]:
+        """Fetch all MBTI reports for a user."""
+        return self.report_driver.get_reports_by_user_id(user_id)

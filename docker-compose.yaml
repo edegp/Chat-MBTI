@@ -54,8 +54,10 @@ services:
       - DB_ADMIN_USER=${DB_ADMIN_USER}
       - DB_ADMIN_PASS=${DB_ADMIN_PASS}
       - GOOGLE_CLOUD_PROJECT="chat-mbti-458210"
+      - SUMMARY_API_URL=http://summary-api:10000
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
       - ./diagnosis-chat-api/src:/app/src
       - ./diagnosis-chat-api/config:/app/config
@@ -64,37 +66,37 @@ services:
     restart: unless-stopped
 
   # summary-api:
-  #     build:
-  #       context: ./diagnosis-summary-api
-  #       dockerfile: Dockerfile
-  #     develop:
-  #       watch:
-  #         # Sync the working directory with the `/app` directory in the container
-  #         - action: sync
-  #           path: ./diagnosis-summary-api/
-  #           target: /app
-  #           # Exclude the project virtual environment
-  #           ignore:
-  #             - .venv/
-  #         - action: rebuild
-  #           path: ./pyproject.toml
-  #     platform: linux/amd64
-  #     ports:
-  #       - "10000:10000"
-  #     environment:
-  #       - GEMINI_API_KEY=${GEMINI_API_KEY}
-  #       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
-  #       - ENVIRONMENT=${ENVIRONMENT}
-  #       - HF_HOME=/workspace/.cache/huggingface
-  #       - hf-cache=/workspace/.cache/huggingface
-  #     depends_on:
-  #       - db
-  #     volumes:
-  #       - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
-  #       - ./diagnosis-summary-api/src:/app/src
-  #       - /app/.venv
-  #       - ./diagnosis-summary-api/model:/workspace
-  #     restart: unless-stopped
+  #   build:
+  #     context: ./diagnosis-summary-api
+  #     dockerfile: Dockerfile
+  #   develop:
+  #     watch:
+  #       # Sync the working directory with the `/app` directory in the container
+  #       - action: sync
+  #         path: ./diagnosis-summary-api/
+  #         target: /app
+  #         # Exclude the project virtual environment
+  #         ignore:
+  #           - .venv/
+  #       - action: rebuild
+  #         path: ./pyproject.toml
+  #   command: >
+  #     uvicorn src.app:app --host 0.0.0.0 --port 10000 --reload --workers 1
+  #   ports:
+  #     - '10000:10000'
+  #   environment:
+  #     - GEMINI_API_KEY=${GEMINI_API_KEY}
+  #     - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+  #     - ENVIRONMENT=${ENVIRONMENT}
+  #     - HF_HOME=/workspace
+  #   depends_on:
+  #     - db
+  #   volumes:
+  #     - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
+  #     - ./diagnosis-summary-api/src:/app/src
+  #     - /app/.venv
+  #     - ./diagnosis-summary-api/model:/workspace
+  #   restart: unless-stopped
 
   # PostgreSQL Database
   db:
@@ -114,18 +116,18 @@ services:
       timeout: 2s
       retries: 10
 
-  db-monitor:
-    image: postgres:15
-    volumes:
-      - ./scripts/db-monitor.sh:/app/db-monitor.sh
-    depends_on:
-      - db
-    environment:
-      - PGHOST=db
-      - PGUSER=postgres
-      - PGPASSWORD=postgres
-      - PGDATABASE=diagnosis_ai
-    command: >
-      bash /app/db-monitor.sh
+  # db-monitor:
+  #   image: postgres:15
+  #   volumes:
+  #     - ./scripts/db-monitor.sh:/app/db-monitor.sh
+  #   depends_on:
+  #     - db
+  #   environment:
+  #     - PGHOST=db
+  #     - PGUSER=postgres
+  #     - PGPASSWORD=postgres
+  #     - PGDATABASE=diagnosis_ai
+  #   command: >
+  #     bash /app/db-monitor.sh
 volumes:
   postgres_data:

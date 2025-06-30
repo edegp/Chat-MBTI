@@ -60,7 +60,7 @@ class judge_and_make_report:
             logger.warning("%s: format error: %s", self.element_name, err)
         return cleaned, ok
 
-    def gemma_judge(self, message_max_length=2000):
+    async def gemma_judge(self, message_max_length=2000):
         """GPU最適化されたGemma推論"""
         prompt = utils.preprocess(
             self.messages,
@@ -72,7 +72,7 @@ class judge_and_make_report:
 
         try:
             # モデル読み込み（既にロード済みなら即座に返す）
-            if not self.model_manager.load_model(use_double_quant=True):
+            if not await self.model_manager.load_model():
                 raise RuntimeError("Failed to load model")
 
             # 推論実行

@@ -129,7 +129,7 @@ class TestChatSessionDriver:
         self.mock_cursor.fetchone.return_value = ("session-123",)
 
         # 実行
-        result = self.driver.get_session_by_user_id("user-123")
+        result = self.driver.get_current_session_by_user_id("user-123")
 
         # 検証
         assert result == "session-123"
@@ -141,7 +141,7 @@ class TestChatSessionDriver:
         self.mock_cursor.fetchone.return_value = None
 
         # 実行
-        result = self.driver.get_session_by_user_id("user-123")
+        result = self.driver.get_current_session_by_user_id("user-123")
 
         # 検証
         assert result is None
