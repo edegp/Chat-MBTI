@@ -236,21 +236,21 @@ class ApiService {
   //   }
   // }
 
-  Future<List<JudgeAndReport>> generateReports() async {
-    final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/generate-reports'),
-      headers: headers,
-    );
+  // Future<List<JudgeAndReport>> generateReports() async {
+  //   final headers = await _getHeaders();
+  //   final response = await http.get(
+  //     Uri.parse('$baseUrl/generate-reports'),
+  //     headers: headers,
+  //   );
 
-    if (response.statusCode == 200) {
-      final List<JudgeAndReport> data =
-        List<JudgeAndReport>.from(jsonDecode(response.body));
-      return data;
-    } else {
-      throw Exception('Failed to generate report: ${response.statusCode}');
-    }
-  }
+  //   if (response.statusCode == 200) {
+  //     final List<JudgeAndReport> data =
+  //       List<JudgeAndReport>.from(jsonDecode(response.body));
+  //     return data;
+  //   } else {
+  //     throw Exception('Failed to generate report: ${response.statusCode}');
+  //   }
+  // }
 
   Future<JudgeAndReport> generateReport(int elementId) async {
     debugPrint('Calling generate report API with elementId: $elementId');

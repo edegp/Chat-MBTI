@@ -55,7 +55,7 @@ services:
       - DB_ADMIN_USER=${DB_ADMIN_USER}
       - DB_ADMIN_PASS=${DB_ADMIN_PASS}
       - GOOGLE_CLOUD_PROJECT="chat-mbti-458210"
-      - SUMMARY_API_URL=http://summary-api:10000
+      - SUMMARY_API_URL=https://mbti-diagnosis-summary-47665095629.asia-southeast1.run.app
     depends_on:
       db:
         condition: service_healthy

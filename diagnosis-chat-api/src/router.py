@@ -389,7 +389,7 @@ async def proxy_generate_report(
     )
 
     # Send request to summary API
-    async with httpx.AsyncClient(timeout=10000) as client:
+    async with httpx.AsyncClient(timeout=420) as client:
         response = await client.post(summary_api_url, json=request_data.dict())
 
     if response.status_code != 200:
@@ -421,84 +421,84 @@ async def proxy_generate_report(
     return JSONResponse(content=data, status_code=200)
 
 
-@router.get("/generate-reports")
-async def proxy_generate_reports(
-    controller: MBTIController = Depends(get_mbti_controller),
-    current_user: dict = Depends(get_current_user),
-):
-    user_id = current_user.get("uid")
-    if not user_id:
-        raise AuthenticationError("User ID not found in authentication token")
+# @router.get("/generate-reports")
+# async def proxy_generate_reports(
+#     controller: MBTIController = Depends(get_mbti_controller),
+#     current_user: dict = Depends(get_current_user),
+# ):
+#     user_id = current_user.get("uid")
+#     if not user_id:
+#         raise AuthenticationError("User ID not found in authentication token")
 
-    conversation_histories = await controller.get_conversation_histories(user_id)
-    logger.debug(
-        f"Retrieved conversation histories for user {user_id}: {conversation_histories}"
-    )
-    logger.info(
-        f"Generating report for user {user_id} with {len(conversation_histories)} complete sessions"
-    )
-    # diagnosis-summary-api のURL（docker-composeならサービス名でOK）
-    summary_api_url = os.path.join(
-        os.getenv("SUMMARY_API_URL"), "summary", "generate-report"
-    )
-    logger.debug(f"Summary API URL: {summary_api_url}")
-    element_messages = [[], [], [], []]  # [energy, mind, nature, tactics]
-    for session_id in conversation_histories.keys():
-        messages = conversation_histories[session_id]
-        logger.debug(f"Processing session {session_id} with {messages} messages")
-        element_messages[0].extend(messages[0])
-        element_messages[1].extend(messages[1])
-        element_messages[2].extend(messages[2])
-        element_messages[3].extend(messages[3])
-    # 各要素ごとにリクエストを送信
-    tasks = []
-    for i, messages in enumerate(element_messages):
-        if not messages:
-            logger.warning(
-                f"No messages found for element {i + 1}, skipping report generation {messages}"
-            )
-            tasks.append({"element_id": i + 1, "error": "No messages found"})
-            continue
-        target_messages = messages[-20:]  # 最新の20メッセージを使用
-        logger.debug(f"Preparing request for element {i + 1} with {messages} messages")
-        logger.info(
-            f"Generating report for element {i + 1} with {len(messages)} messages"
-        )
-        request_data = GenerateReport(messages=target_messages, element_id=i + 1)
-        tasks.append(request_data)
+#     conversation_histories = await controller.get_conversation_histories(user_id)
+#     logger.debug(
+#         f"Retrieved conversation histories for user {user_id}: {conversation_histories}"
+#     )
+#     logger.info(
+#         f"Generating report for user {user_id} with {len(conversation_histories)} complete sessions"
+#     )
+#     # diagnosis-summary-api のURL（docker-composeならサービス名でOK）
+#     summary_api_url = os.path.join(
+#         os.getenv("SUMMARY_API_URL"), "summary", "generate-report"
+#     )
+#     logger.debug(f"Summary API URL: {summary_api_url}")
+#     element_messages = [[], [], [], []]  # [energy, mind, nature, tactics]
+#     for session_id in conversation_histories.keys():
+#         messages = conversation_histories[session_id]
+#         logger.debug(f"Processing session {session_id} with {messages} messages")
+#         element_messages[0].extend(messages[0])
+#         element_messages[1].extend(messages[1])
+#         element_messages[2].extend(messages[2])
+#         element_messages[3].extend(messages[3])
+#     # 各要素ごとにリクエストを送信
+#     tasks = []
+#     for i, messages in enumerate(element_messages):
+#         if not messages:
+#             logger.warning(
+#                 f"No messages found for element {i + 1}, skipping report generation {messages}"
+#             )
+#             tasks.append({"element_id": i + 1, "error": "No messages found"})
+#             continue
+#         target_messages = messages[-20:]  # 最新の20メッセージを使用
+#         logger.debug(f"Preparing request for element {i + 1} with {messages} messages")
+#         logger.info(
+#             f"Generating report for element {i + 1} with {len(messages)} messages"
+#         )
+#         request_data = GenerateReport(messages=target_messages, element_id=i + 1)
+#         tasks.append(request_data)
 
-    # すべてのリクエストを並行して送信
-    responses = []
-    if tasks:
-        async with httpx.AsyncClient(timeout=10000) as client:
-            coros = []
-            for request_data in tasks:
-                if isinstance(request_data, dict):
-                    # Skip if no messages found
-                    logger.warning(
-                        f"Skipping report generation for element {request_data['element_id']}: {request_data['error']}"
-                    )
-                    coros.append(asyncio.create_task(ValueError("No messages found")))
-                    continue
-                logger.debug(f"Sending request for element {request_data.element_id}")
-                coros.append(
-                    client.post(summary_api_url, json=request_data.dict(), timeout=3000)
-                )
-                await asyncio.sleep(3)  # 少し待機してリクエストを分散
-            responses = await asyncio.gather(*coros, return_exceptions=True)
+#     # すべてのリクエストを並行して送信
+#     responses = []
+#     if tasks:
+#         async with httpx.AsyncClient(timeout=10000) as client:
+#             coros = []
+#             for request_data in tasks:
+#                 if isinstance(request_data, dict):
+#                     # Skip if no messages found
+#                     logger.warning(
+#                         f"Skipping report generation for element {request_data['element_id']}: {request_data['error']}"
+#                     )
+#                     coros.append(asyncio.create_task(ValueError("No messages found")))
+#                     continue
+#                 logger.debug(f"Sending request for element {request_data.element_id}")
+#                 coros.append(
+#                     client.post(summary_api_url, json=request_data.dict(), timeout=3000)
+#                 )
+#                 await asyncio.sleep(3)  # 少し待機してリクエストを分散
+#             responses = await asyncio.gather(*coros, return_exceptions=True)
 
-    # Collect results and handle errors
-    result_list = []
-    for resp in responses:
-        if isinstance(resp, Exception):
-            result_list.append({"error": str(resp)})
-        else:
-            try:
-                result_list.append(resp.json())
-            except Exception as e:
-                result_list.append({"error": f"Failed to parse response: {str(e)}"})
+#     # Collect results and handle errors
+#     result_list = []
+#     for resp in responses:
+#         if isinstance(resp, Exception):
+#             result_list.append({"error": str(resp)})
+#         else:
+#             try:
+#                 result_list.append(resp.json())
+#             except Exception as e:
+#                 result_list.append({"error": f"Failed to parse response: {str(e)}"})
 
-    return JSONResponse(status_code=200, content={"results": result_list})
+#     return JSONResponse(status_code=200, content={"results": result_list})
 
 
 # --- レポート復元用リクエストモデル ---

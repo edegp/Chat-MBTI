@@ -12,7 +12,6 @@ import time
 from .main import judge_and_make_report
 from . import utils
 from logging import getLogger
-from .gpu_model_manager_vllm import GPUModelManager
 from fastapi.middleware.cors import CORSMiddleware
 
 logger = getLogger(__name__)
@@ -25,10 +24,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # ローカル開発
-        "https://mbti-diagnosis-api-47665095629.asia-northeast1.run.app",  # 本番 (必要に応じて追加)
-    ],
+    allow_origins=["*"],
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -98,14 +94,12 @@ async def generate_report(request: ReportRequest):
 
             if not processor:
                 logger.error("No processors created. Check your input data.")
-                return json.dumps({"error": "No valid processors available"}) + "\n"
+                return json.dumps({"error": "No valid processors available"})
 
             if not processor.model_manager.initialized:
                 if not await processor.model_manager.load_model():
                     logger.error("Failed to load model")
-                    return (
-                        json.dumps({"error": "モデルの読み込みに失敗しました"}) + "\n"
-                    )
+                    return json.dumps({"error": "モデルの読み込みに失敗しました"})
 
             judge, is_success_gemma_judge = await processor.gemma_judge_async()
             if not is_success_gemma_judge:
@@ -126,7 +120,7 @@ async def generate_report(request: ReportRequest):
             )
         except Exception as e:
             logger.error(f"Error generating report: {e}")
-            return json.dumps({"error": "処理中に問題が発生しました"}) + "\n"
+            return json.dumps({"error": "処理中に問題が発生しました"})
 
 
 @app.post("/summary/generate-report-stream-batch")

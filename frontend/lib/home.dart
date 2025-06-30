@@ -174,7 +174,6 @@ class _LoginPageState extends State<LoginPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final idToken = await user.getIdToken(true);
-        debugPrint(idToken);
       }
 
       if (mounted) {

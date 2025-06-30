@@ -89,6 +89,16 @@ class _ResultPageContentState extends State<_ResultPageContent> {
     "判断の仕方",
     "外界との接し方",
   ];
+  // final jsonParts = [
+  //     { "element": "energy", "report": "## 性格診断レポート：内向型(I)\n\n会話履歴を分析した結果、あなたはMBTIにおける内向型(I)である可能性が高いと判断しました。その理由は以下の通りです。\n\n## 1. 個人的な活動によるリフレッシュ\n\n  あなたは、知らない町を散歩したり、カフェで読書をしたりするなど、一人で過ごす時間をリフレッシュ方法として挙げています。これは、内向型の人が外部からの刺激よりも、自分の内面世界に集中することでエネルギーを充電する傾向があることを示唆しています。\n\n## 2. 条件付きの社交性\n\n  複数人でリフレッシュできることとして「お酒を飲みながら語る」ことを挙げていますが、「孤独を感じた時」という条件付きです。これは、内向型の人が社交的な活動を完全に避けるわけではないものの、特定の状況や必要性に基づいて選択的に関わる傾向があることを示しています。\n\n## 3. 受動的なコミュニケーションスタイル\n\n  複数人でご飯を食べる時の役割として「聞き役が多い」と答えており、積極的に会話をリードするタイプではないことが示唆されます。内向型の人は、発言する前に考えを深め、聞き手に回ることが多い傾向があります。", "gemma_judge": "[/judge]\n\n[reason]:一人でカフェで読書をするなど、一人で過ごす時間を好む傾向がある\n初対面の人と積極的に交流するよりも、すでに知っている人と過ごすことを好む\n新しいことを学ぶ際、最終的に何をしたいかを決め、そこから着実に進めていく\nカフェでの読書など、穏やかな環境で自分と向き合うことでエネルギーをチャージする\n[judge]:I[/judge]", "gemma_success": false, "pred_label": "I"},
+  //     { "element": "mind", "report": "## MBTI：直観型(N)の可能性が高い理由\n\n会話履歴から判断すると、あなたはMBTIの直観型(N)の傾向が強いと考えられます。その理由を以下に示します。\n\n## 1. 趣味について話すことを好む\n\n趣味について話すことを好むという点は、直観型(N)の特徴である「可能性」や「未来」への興味と関連しています。直観型は、現実の具体的な事柄よりも、アイデアや概念、そしてそれらがもたらす可能性について語ることを好む傾向があります。あなたの「趣味の時間を楽しんでいます」という発言や、その内容に関する質問への回答から、具体的な行動よりも、その趣味がもたらす経験や感情、そこから広がる可能性に重きを置いている様子が伺えます。\n\n## 2. 空想を広げることを好む\n\n空想を広げることを好む点は、まさに直観型(N)を特徴づける行動です。直観型は、五感で捉えられる情報よりも、頭の中で作り上げたイメージやインスピレーションを重視します。あなたの「自分の空想を広げられるとき」に一人で過ごす時間を良いと感じるという発言は、この直観型の傾向を強く示唆しています。\n\n## 3. 具体的な説明をしない「間」を持った抽象度の高い話をする\n\n具体的な説明を避け、抽象度の高い話をする傾向は、直観型(N)の特徴の一つです。直観型は、細部にこだわるよりも全体像を把握することを重視し、具体的な事柄よりも概念的な理解を優先します。あなたの回答は、具体的な行動や状況に関する質問に対して、やや抽象的な表現にとどまっている部分があります。これは、詳細な情報よりも、背後にある概念やアイデアを重視する直観型の思考パターンを反映している可能性があります。", "gemma_judge": "[reason]:趣味について話すことを好む\n空想を広げることを好む\n具体的な説明をしない「間」を持った抽象度の高い話をする\n[judge]:N", "gemma_success": true, "pred_label": "N"},
+  //     { "element": "nature", "report": "## MBTI診断結果：感情型(F)\n\n会話履歴から判断すると、あなたはMBTIにおける感情型(F)である可能性が高いです。以下の理由から、そのように判断しました。\n\n## 1. 意見の言い換えが難しい状況で感情に配慮する\n\nあなたは、意見の言い換えが難しいと感じる状況でも、相手の感情に配慮したコミュニケーションを心がけているようです。これは、論理的な正しさよりも、相手の気持ちを尊重する感情型(F)の特徴を示しています。\n\n## 2. 相手の立場に立って考える\n\nあなたは、相手の立場に立って物事を考えることを重視しています。これは、感情型(F)が共感性や調和を大切にする性質と一致します。相手の気持ちを理解しようと努める姿勢は、感情型(F)の重要な特徴です。\n\n## 3. 相手の気持ちを害する可能性を考慮する\n\nあなたは、発言や行動が相手の気持ちを害する可能性を常に考慮しているようです。これは、感情型(F)が人間関係を円滑に保つことを重視する傾向の表れです。相手の気持ちを第一に考えるあなたの姿勢は、感情型(F)の典型的な特徴と言えるでしょう。", "gemma_judge": "[reason]:意見の言い換えが難しいと感じる状況で、相手の感情に配慮して、感情的なアプローチを取る\n相手の立場に立って考える\n相手の気持ちを害する可能性を考慮する\n[judge]:F", "gemma_success": true ,"pred_label": "F"},
+  //     { "element": "tactics", "report": "性格診断の結果から、あなたはMBTIにおける**判断型(J)**である可能性が高いと判断しました。以下にその理由を詳しく説明します。\n\n## 1. 将来の自分を納得させられるか\n\n  大きな買い物をするときの判断基準として「将来の自分を納得させられるか」という点を挙げていることから、計画性や将来を見据えた思考が強いことが伺えます。判断型(J)は、明確な目標を持ち、計画的に物事を進めることを好む傾向があります。将来のリスクや後悔を考慮し、論理的に判断を下す姿勢は、判断型(J)の特徴と一致します。\n\n## 2. 明確な判断基準や論理\n\n  「将来の自分を納得させられるか」という基準は、一見抽象的に見えますが、あなたの中には明確な判断基準や論理が存在していると考えられます。判断型(J)は、自身の価値観や原則に基づいて判断を下すことが多く、そのため、一貫性のある行動を取ることが特徴です。\n\n## 3. 責任や完了に対する意識\n\n  「将来の自分を納得させられるか」という言葉には、将来に対する責任感や、物事を最後までやり遂げたいという完了欲求が含まれていると考えられます。判断型(J)は、責任感が強く、計画したことを最後までやり遂げることに喜びを感じる傾向があります。将来を見据えた判断基準を持つことは、責任感の表れと言えるでしょう。", "gemma_judge": "[reason]:将来の自分を納得させられるかという発言は、計画や構造を重視する判断型に多く見られる\n明確な判断基準や論理\n責任や完了に対する意識\n[judge]:J", "gemma_success": true ,"pred_label": "J"}
+  //   ];
+  // List<JudgeAndReport> _reports = [];
+  // final List<JudgeAndReport> _reports = [];
+  // List<Map<String, dynamic>> get _jsonParts => jsonParts;
+
   bool _feedbackSent = false;
   bool _hasSentFeedback = false;
   bool _checkingFeedback = true;
@@ -96,12 +106,15 @@ class _ResultPageContentState extends State<_ResultPageContent> {
   bool _allReportsLoaded = false;
   final List<String> _predLabels = [];
   String? _selectedMbtiType;
+  bool _skipRestore = false;
+
   @override
   void initState() {
     super.initState();
     _restoreReportsIfNeeded();
     _checkFeedbackStatus();
   }
+
 
   Future<void> _checkFeedbackStatus() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -129,11 +142,14 @@ class _ResultPageContentState extends State<_ResultPageContent> {
   }
 
   Future<void> _restoreReportsIfNeeded() async {
+    if (_skipRestore) return;
     if (_reports.isNotEmpty || _allReportsLoaded) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final userId = user.uid;
+
     List<JudgeAndReport> restored = [];
+
     for (int i = 0; i < _elementIds.length; i++) {
       final report = await _apiService.restoreReport(
         userId: userId,
@@ -145,6 +161,7 @@ class _ResultPageContentState extends State<_ResultPageContent> {
     }
     if (restored.isNotEmpty) {
       setState(() {
+        _skipRestore = true;
         _reports.clear();
         _reports.addAll(restored);
         _predLabels.clear();
@@ -174,8 +191,8 @@ class _ResultPageContentState extends State<_ResultPageContent> {
 
   Widget _buildFinalResultBanner() {
     String finalType = _predLabels.join();
-    if (finalType.isEmpty && _reports.isNotEmpty) {
-      finalType = _reports.map((r) => r.pred_label).join();
+    if (finalType.isEmpty &&  _reports.isNotEmpty) {
+      finalType =  _reports.map((r) => r.pred_label).join();
     }
     final String displayText = _mbtiTypeOptions.firstWhere(
       (option) => option.startsWith(finalType),
@@ -264,7 +281,8 @@ class _ResultPageContentState extends State<_ResultPageContent> {
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
       children: [
-        if (_allReportsLoaded) _buildFinalResultBanner(),
+        // if (_allReportsLoaded)
+        _buildFinalResultBanner(),
         for (int i = 0; i < 4; i++) ...[
           Container(
             decoration: BoxDecoration(
@@ -292,8 +310,8 @@ class _ResultPageContentState extends State<_ResultPageContent> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                if (i < _reports.length)
-                  MarkdownBody(data: _reports[i].report)
+                if (i <  _reports.length)
+                  MarkdownBody(data:  _reports[i].report)
                 else
                   const Center(
                     child: Padding(

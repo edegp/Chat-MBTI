@@ -42,6 +42,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFFAF9F6), // クリーム色
       ),
       initialRoute: "/data-collection",
+      debugShowCheckedModeBanner: false,
       // onGenerateRouteは不要
       routes: {
         '/': (ctx) => const LoginPage(),

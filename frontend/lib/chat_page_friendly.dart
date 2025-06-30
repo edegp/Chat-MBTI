@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'services/api_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'result.dart';
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FriendlyChatPage extends StatefulWidget {
@@ -15,9 +16,10 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   final ApiService _apiService = ApiService();
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<JudgeAndReport> _reports = [];
   late Future<JudgeAndReport> _reportFuture;
+  List<JudgeAndReport> _reports = [];
   List<Future<JudgeAndReport>> _reportFutures = [];
+  List<int> _reportedPhases = [];
   String? _currentQuestion;
   List<String> _currentOptions = [];
   List<Map<String, dynamic>> _chatHistory = [];
@@ -32,6 +34,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   String? _completionMessage;
   bool _isRestoringHistory = false; // 履歴復元中フラグを追加
   bool _isNavigatingToResult = false; // 結果ページへの遷移中フラグ
+  bool _isSubmitting = false;
 
   // UI transition management - show only current phase conversations
   int _currentPhase = 1; // Phase 1: Q1-5, Phase 2: Q6-10, etc.
@@ -233,6 +236,9 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
   }
 
   Future<void> _submitAnswer(String answer) async {
+    if (_isSubmitting) return;
+    _isSubmitting = true;
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -256,18 +262,9 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
         // Check if we need to transition to a new phase (every _phase_per_question questions)
         if (newPhase > _currentPhase) {
+          debugPrint('Transitioning to new phase: $_currentPhase -> $newPhase');
           // Clear history when entering a new phase
-          _reportFuture = _apiService.generateReport(_currentPhase);
-          _reportFuture.then((report_json) {
-            if (!mounted) return;
-            setState(() {
-              _reports.add(report_json);
-            });
-          });
-          _reportFutures.add(_reportFuture);
-          // if (_currentPhase == 1) {
-          //   final future_startup = _apiService.startupSummaryApi(elementId: 4);
-          // }
+          await _createReportForPhase(_currentPhase);
 
           setState(() {
             _chatHistory.clear();
@@ -302,29 +299,13 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
           }
         });
 
-        // デバッグ用ログ
-        debugPrint('Progress updated: $_progress, question: $_questionNumber/$_totalQuestions, Phase: $_currentPhase');
-        debugPrint('Backend data: $data');
-        debugPrint('Browser Console: Progress updated: $_progress, question: $_questionNumber/$_totalQuestions, Phase: $_currentPhase');
-        debugPrint('Browser Console: Backend data: $data');
-
         // プログレスバーアニメーションを更新
         _progressAnimController.animateTo(_progress);
-
-        // 明示的にプログレス情報を再取得して更新
-        // Removed redundant explicit progress refresh to prevent off-by-one
-
         await _getOptions();
         _scrollToBottom();
       } else if (data['phase'] == 'diagnosis') {
-          _reportFuture = _apiService.generateReport(_currentPhase);
-          _reportFuture.then((report_json) {
-            if (!mounted) return;
-            setState(() {
-              _reports.add(report_json);
-            });
-          });
-          _reportFutures.add(_reportFuture);
+          debugPrint('Diagnosis phase reached, preparing to navigate to results');
+          await _createReportForPhase(_currentPhase);
           // show loading dot
           setState(() {
             _isLoading = false;
@@ -338,9 +319,26 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
         _error = e.toString();
         _isLoading = false;
       });
+    } finally {
+      // Reset submitting state after operation
+      _isSubmitting = false;
     }
   }
 
+  Future<void> _createReportForPhase(int phase) async {
+    if (_reportedPhases.contains(phase)) return; // 既に生成済み
+    debugPrint('Creating report for phase: $phase');
+    _reportedPhases.add(phase);
+
+    final future = _apiService.generateReport(phase);
+    _reportFutures.add(future);
+
+    unawaited(future.then((json) {
+      if (mounted) setState(() => _reports.add(json));
+    }).catchError((e) {
+      debugPrint('Report error: $e');
+    }));
+  }
   // プログレス情報を明示的に更新する関数
   // ignore: unused_element
   Future<void> _updateProgress() async {
