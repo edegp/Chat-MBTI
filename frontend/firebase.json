@@ -7,7 +7,7 @@
         "source": "/api/**",
         "run": {
           "serviceId": "mbti-diagnosis-api",
-          "region": "asia-northeast1"
+          "region": "asia-southeast1"
         }
       },
       {
