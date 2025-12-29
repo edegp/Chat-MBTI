@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'result.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get/get.dart';
 
 class FriendlyChatPage extends StatefulWidget {
   const FriendlyChatPage({super.key});
@@ -67,17 +68,19 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
     _checkExistingConversation();
   }
 
-  Future<void> _startup() async {
-    try {
+  Future<void> _runStartupSummary() async {
+    final String? prevRoute = Get.previousRoute;
+    if (prevRoute != '/') {
       // await _apiService.startupSummaryApi(elementId: 3);
-      if (!mounted) return;  // ← ここでガード
-      // 必要ならここで setState(...)
-    } catch (e, st) {
-      if (!mounted) return;
-      debugPrintStack(stackTrace: st, label: e.toString());
-      // setState でエラー表示しても OK
+      // await _apiService.startupSummaryApi(elementId: 1);
+      // await Future.delayed(const Duration(seconds: 10));
+      // await _apiService.startupSummaryApi(elementId: 2);
+      // await Future.delayed(const Duration(seconds: 30));
+      await _apiService.startupSummaryApi(elementId: 4);
     }
+
   }
+
 
   // 既存の会話をチェックして、続きから開始するか新しい会話を始める
   Future<void> _checkExistingConversation() async {
@@ -262,6 +265,7 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
 
         // Check if we need to transition to a new phase (every _phase_per_question questions)
         if (newPhase > _currentPhase) {
+          // if (_currentPhase == 1) _apiService.startupSummaryApi(elementId: 4);
           debugPrint('Transitioning to new phase: $_currentPhase -> $newPhase');
           // Clear history when entering a new phase
           await _createReportForPhase(_currentPhase);
@@ -649,6 +653,9 @@ class _FriendlyChatPageState extends State<FriendlyChatPage> with TickerProvider
       _currentPhase = 1;
       _currentQuestion = null;
       _currentOptions = [];
+      _reportedPhases.clear();
+      _reportFutures.clear();
+      _reports.clear();
     });
     await _startNewConversation();
     if (mounted) {

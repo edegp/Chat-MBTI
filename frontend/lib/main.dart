@@ -41,13 +41,13 @@ class MyApp extends StatelessWidget {
         fontFamily: 'NotoSansJP', // 日本語フォント推奨
         scaffoldBackgroundColor: const Color(0xFFFAF9F6), // クリーム色
       ),
-      initialRoute: "/data-collection",
+      initialRoute: "/",
       debugShowCheckedModeBanner: false,
       // onGenerateRouteは不要
       routes: {
         '/': (ctx) => const LoginPage(),
         '/chat': (ctx) => const AuthGuard(child: FriendlyChatPage()),
-        '/data-collection': (ctx) => const DataCollectionPage(),
+        // '/data-collection': (ctx) => const DataCollectionPage(),
         // '/resetpassword': (ctx) => const ResetPasswordPage(),
       },
       onGenerateRoute: (settings) {

@@ -115,6 +115,7 @@ async def generate_report(request: ReportRequest):
             logger.info("Received request to generate report")
             logger.debug(f"Request data: {request.json()}")
 
+
             for message in request.messages:
                 if not isinstance(message, Message):
                     logger.error("Invalid message format: %s", message)

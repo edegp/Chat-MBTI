@@ -63,7 +63,7 @@ services:
       - ./diagnosis-chat-api/src:/app/src
       - ./diagnosis-chat-api/config:/app/config
       - ./diagnosis-chat-api/firebase-adminsdk.json:/app/firebase-adminsdk.json
-      - ${HOME}/.config/gcloud/application_default_credentials.json:/app/credentials.json
+      - ./chat-mbti-458210-d59f9e5a4a17.json:/app/credentials.json
     restart: unless-stopped
 
   # summary-api:

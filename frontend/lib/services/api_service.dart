@@ -73,7 +73,7 @@ class ApiService {
     }
   }
   static const String baseUrl =
-      kDebugMode ? 'http://localhost:8000/api/v1' : '/api/v1';
+      kDebugMode ? 'http://localhost:8000/api/v1' : 'https://mbti-diagnosis-api-47665095629.asia-southeast1.run.app/api/v1';
   // static const String reportUrl =
   //     kDebugMode ? String.fromEnvironment('REPORT_URL') : '/summary';
 
@@ -220,21 +220,28 @@ class ApiService {
     }
   }
 
-  // Future<String> startupSummaryApi({int elementId = 1}) async {
-  //   debugPrint('Calling startup summary API with elementId: $elementId');
-  //   final headers = await _getHeaders();
-  //   final response = await http.get(
-  //     Uri.parse('$reportUrl/startup?element_id=$elementId'),
-  //     headers: headers,
-  //   );
+  Future<String> startupSummaryApi({int elementId = 1}) async {
+    debugPrint('Calling startup summary API with elementId: $elementId');
+    final headers = await _getHeaders();
+    final response = await http.post(
+      Uri.parse('$baseUrl/summary-startup'),
+      headers: headers,
+      body: json.encode({'element_id': elementId}),
+    ).timeout(
+      const Duration(seconds: 600), // タイムアウトを600秒に設定
+      onTimeout: () {
+        debugPrint('Startup summary API request timed out');
+        throw Exception('Startup summary API request timed out');
+      },
+    );
 
-  //   if (response.statusCode == 200) {
-  //     debugPrint('Startup summary API response ${elementId}: ${response.body}');
-  //     return response.body;
-  //   } else {
-  //     throw Exception('Failed to startup summary API: ${response.statusCode}');
-  //   }
-  // }
+    if (response.statusCode == 200) {
+      debugPrint('Startup summary API response ${elementId}: ${response.body}');
+      return response.body;
+    } else {
+      throw Exception('Failed to startup summary API: ${response.statusCode}');
+    }
+  }
 
   // Future<List<JudgeAndReport>> generateReports() async {
   //   final headers = await _getHeaders();
@@ -255,17 +262,26 @@ class ApiService {
   Future<JudgeAndReport> generateReport(int elementId) async {
     debugPrint('Calling generate report API with elementId: $elementId');
     final headers = await _getHeaders();
-    final response = await http.get(
-      Uri.parse('$baseUrl/generate-report?element_id=$elementId'),
+    final response = await http.post(
+      Uri.parse('$baseUrl/generate-report'),
       headers: headers,
+      body: json.encode({'element_id': elementId}),
+
+    ).timeout(
+      const Duration(seconds: 900), // タイムアウトを900秒に設定
+      onTimeout: () {
+        debugPrint('Generate report API request timed out');
+        throw Exception('Generate report API request timed out');
+      },
     );
 
     if (response.statusCode == 200) {
       JudgeAndReport data =
           JudgeAndReport.fromJson(jsonDecode(response.body));
-      debugPrint('Generate report API response: $data');
+      debugPrint('Generate report API response: ${data}');
       return data;
     } else {
+      debugPrint('Failed to generate report: ${response.body}');
       throw Exception('Failed to generate report: ${response.statusCode}');
     }
   }
