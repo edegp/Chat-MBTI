@@ -1,0 +1,63 @@
+# Serena Configuration for Chat-MBTI
+
+project:
+  name: Chat-MBTI
+  description: MBTI性格診断チャットアプリケーション
+  language: python, dart
+
+structure:
+  backend:
+    - diagnosis-chat-api/  # Main chat API (FastAPI + LangGraph)
+    - diagnosis-summary-api/  # ML summary API (FastAPI + Transformers)
+  frontend:
+    - frontend/  # Flutter Web app
+  infrastructure:
+    - terraform/  # GCP infrastructure
+
+services:
+  diagnosis-chat-api:
+    framework: FastAPI
+    runtime: Python 3.12
+    dependencies:
+      - langchain
+      - langgraph
+      - langchain-google-genai
+      - psycopg
+    cloud_run: mbti-diagnosis-api
+
+  diagnosis-summary-api:
+    framework: FastAPI
+    runtime: Python 3.12
+    dependencies:
+      - transformers
+      - torch
+    cloud_run: mbti-diagnosis-summary
+
+  frontend:
+    framework: Flutter
+    platform: Web
+    hosting: Firebase
+
+database:
+  provider: Supabase
+  type: PostgreSQL
+  tables:
+    - users
+    - chat_sessions
+    - personality_elements
+    - checkpoint_blobs
+    - checkpoint_writes
+
+cloud:
+  provider: GCP
+  project_id: chat-mbti-458210
+  region: asia-southeast1
+  services:
+    - Cloud Run
+    - Cloud Build
+    - Secret Manager
+    - Artifact Registry
+
+conventions:
+  commit_style: conventional
+  branch_strategy: trunk-based
