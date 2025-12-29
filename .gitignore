@@ -248,3 +248,6 @@ cython_debug/
 model/**
 .env*
 *.env*
+
+chat-mbti-458210-d59f9e5a4a17.json
+terraform.tfvars
