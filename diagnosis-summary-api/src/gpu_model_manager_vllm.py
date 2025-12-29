@@ -29,29 +29,29 @@ class GPUModelManager:
         return cls._semaphore
 
     def __new__(cls, model_name: str):
-        return cls._instances.setdefault(model_name, super().__new__(cls))
+        cls._locks.setdefault(model_name, asyncio.Lock())
+        # まだ存在しなければ生成＋初期化
+        if model_name not in cls._instances:
+            self = super().__new__(cls)
+            # --- コンストラクタ代替の初期化処理 ---
+            self.model_name = model_name
+            self.model: Optional[AutoModelForCausalLM] = None
+            self.tokenizer: Optional[AutoTokenizer] = None
+            self.device = (
+                "cuda"
+                if torch.cuda.is_available()
+                else "mps"
+                if torch.backends.mps.is_available()
+                else "cpu"
+            )
+            self.initialized = False
+            # ----------------------------------------
+            cls._instances[model_name] = self
+        return cls._instances[model_name]
 
     @classmethod
     def _get_lock(cls, model_name: str) -> asyncio.Lock:
-        if model_name not in cls._locks:
-            cls._locks[model_name] = asyncio.Lock()
         return cls._locks[model_name]
-
-    def __init__(self, model_name: str):
-        if getattr(self, "initialized", False):
-            return  # すでに初期化済み
-
-        self.model_name = model_name
-        self.model: Optional[AutoModelForCausalLM] = None
-        self.tokenizer: Optional[AutoTokenizer] = None
-        self.device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
-        )
-        self.initialized = False
 
     # ---------- 同期メソッド：実際のロード ----------
 
@@ -97,7 +97,13 @@ class GPUModelManager:
         except Exception as e:
             logger.error(f"[{self.model_name}] load failed: {e}")
             traceback.print_exc()
+            self.initialized = False
+            self.model = None
+            self.tokenizer = None
             return False
+
+        finally:
+            torch.cuda.empty_cache()  # GPU メモリ解放
 
     # -----------------------------------------------
 
@@ -108,16 +114,15 @@ class GPUModelManager:
         if self.initialized:
             return True
 
-        # ★ 同時ロード本数を全体で制限
-        async with self._get_semaphore():
-            lock = self._get_lock(self.model_name)
-            async with lock:
-                if self.initialized:  # ← ダブルチェック
-                    return True
+        # 最大4並列はThreadPoolExecutor(max_workers=4)で制御
+        lock = self._get_lock(self.model_name)
+        async with lock:
+            if self.initialized:  # ← ダブルチェック
+                return True
 
-                loop = asyncio.get_running_loop()
-                fn = functools.partial(self._load_sync, use_double_quant)
-                return await loop.run_in_executor(self._executor, fn)
+            loop = asyncio.get_running_loop()
+            fn = functools.partial(self._load_sync, use_double_quant)
+            return await loop.run_in_executor(self._executor, fn)
 
     def generate(
         self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.1
@@ -155,7 +160,9 @@ class GPUModelManager:
             raise RuntimeError("Model not loaded")
 
         with torch.inference_mode():
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(
+                self.device, non_blocking=True
+            )
             outputs = self.model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
@@ -173,10 +180,10 @@ class GPUModelManager:
     async def generate_async(
         self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.1
     ) -> str:
+        # 最大4並列はasyncio.Semaphoreで制御
         async with self._get_semaphore():
-            loop = asyncio.get_running_loop()
-            return await loop.run_in_executor(
-                self._executor,
+            # run in default thread pool without custom executor
+            return await asyncio.to_thread(
                 self._generate_sync,
                 prompt,
                 max_new_tokens,

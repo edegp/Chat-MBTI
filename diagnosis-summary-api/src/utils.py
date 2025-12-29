@@ -58,7 +58,7 @@ def preprocess(
     return prompt
 
 
-def remove_special_token(response) -> str:
+def remove_special_token(response: str) -> str:
     """LLMのレスポンスに含まれる特殊トークンを省く"""
     output = response.replace("<bos>", "").replace("<eos>", "")
     return output
@@ -80,6 +80,10 @@ def judge_response_follow_format(text: str, true_labels: list[str]):
     lines = text.strip().splitlines()
 
     # Check the first line starts with "[reason]:"
+    if len(lines) == 0:
+        errors.append("出力が空です。")
+        return False, errors
+
     first_line = lines[0]
     if not first_line.startswith("[reason]:"):
         error = "最初の行が '[reason]:' で始まっていません。"

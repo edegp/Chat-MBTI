@@ -98,28 +98,15 @@ CREATE TABLE IF NOT EXISTS mbti_reports (
 
 """
 
+# Cloud SQL connection (optional, for GCP deployments)
 SQL_CONNECTION_NAME = os.getenv("SQL_CONNECTION_NAME")
-DB_SOCKET_PATH = f"/cloudsql/{SQL_CONNECTION_NAME}"
-# Environment variables for secure DB user management
+DB_SOCKET_PATH = f"/cloudsql/{SQL_CONNECTION_NAME}" if SQL_CONNECTION_NAME else None
 
-
-try:
-    # Application user credentials must be set via environment (e.g., Secret Manager)
-    APP_DB_USER = os.environ["DB_APP_USER"]
-    APP_DB_PASS = os.environ["DB_APP_PASS"]
-except KeyError as e:
-    raise RuntimeError(
-        f"Required environment variable {e.args[0]} not set for application DB user"
-    )
-
-try:
-    # Admin (superuser) credentials for role setup
-    ADMIN_DB_USER = os.environ["DB_ADMIN_USER"]
-    ADMIN_DB_PASS = os.environ["DB_ADMIN_PASS"]
-except KeyError as e:
-    raise RuntimeError(
-        f"Required environment variable {e.args[0]} not set for admin DB user"
-    )
+# Database credentials
+APP_DB_USER = os.getenv("DB_APP_USER", "postgres")
+APP_DB_PASS = os.getenv("DB_APP_PASS", "")
+ADMIN_DB_USER = os.getenv("DB_ADMIN_USER", APP_DB_USER)
+ADMIN_DB_PASS = os.getenv("DB_ADMIN_PASS", APP_DB_PASS)
 
 # グローバルコネクションプール
 _connection_pool = None
@@ -127,26 +114,35 @@ _connection_pool = None
 
 def get_dsn() -> str:
     # Read database name and use application user credentials
-    db_name = os.getenv("DB_NAME", "diagnosis_ai")
+    db_name = os.getenv("DB_NAME", "postgres")
     db_user = APP_DB_USER
     db_pass = quote_plus(APP_DB_PASS)
-    socket_path = DB_SOCKET_PATH
-    if SQL_CONNECTION_NAME is not None:
-        logger.info("Connecting via Unix socket", extra={"socket_path": socket_path})
-        return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={socket_path}"
+    db_port = os.getenv("DB_PORT", "5432")
 
-    # Use custom host if provided (e.g., Cloud Run TCP or other env)
-    db_host = os.environ.get("DB_HOST")
+    # Use DATABASE_URL if provided (Supabase, Railway, etc.)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        logger.info("Connecting via DATABASE_URL")
+        return database_url
+
+    # Cloud SQL Unix socket connection (GCP)
+    if SQL_CONNECTION_NAME and DB_SOCKET_PATH:
+        logger.info("Connecting via Unix socket", extra={"socket_path": DB_SOCKET_PATH})
+        return f"postgresql://{db_user}:{db_pass}@/{db_name}?host={DB_SOCKET_PATH}"
+
+    # Use custom host if provided (Supabase, etc.)
+    db_host = os.getenv("DB_HOST")
     if db_host:
-        return (
-            f"postgresql://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=disable"
-        )
+        # Supabase requires SSL
+        sslmode = os.getenv("DB_SSLMODE", "require")
+        logger.info("Connecting via TCP", extra={"host": db_host, "port": db_port})
+        return f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}?sslmode={sslmode}"
 
     # Fallback to Docker 'db' hostname or localhost
     try:
         socket.gethostbyname("db")
         host = "db"
-    except socket.gaierror as e:
+    except socket.gaierror:
         host = "localhost"
 
     return f"postgresql://{db_user}:{db_pass}@{host}:5432/{db_name}?sslmode=disable"
@@ -629,10 +625,10 @@ class UserAnswerDriver(BaseDBDriver):
                     )
                     result = cur.fetchone()
                     if result:
-                        logger.info(
-                            "User answer retrieved successfully",
-                            extra={"question_id": str(question_id)},
-                        )
+                        # logger.info(
+                        #     "User answer retrieved successfully",
+                        #     extra={"question_id": str(question_id)},
+                        # )
                         return result
                     else:
                         logger.warning(

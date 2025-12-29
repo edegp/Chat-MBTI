@@ -7,7 +7,7 @@ variable "project_id" {
 variable "region" {
   description = "Google Cloud region"
   type        = string
-  default     = "asia-northeast1"
+  default     = "asia-southeast1"
 }
 
 variable "app_name" {
@@ -65,6 +65,12 @@ variable "diagnosis_chat" {
 # API Keys
 variable "gemini_api_key" {
   description = "Google Gemini API key"
+  type        = string
+  sensitive   = true
+}
+
+variable "supabase_database_url" {
+  description = "Supabase PostgreSQL connection URL"
   type        = string
   sensitive   = true
 }

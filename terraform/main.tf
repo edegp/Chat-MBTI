@@ -72,11 +72,3 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
 }
 
-resource "google_vpc_access_connector" "connector" {
-  name          = var.diagnosis_chat.vpc.connector_name
-  region        = var.region
-  network       = google_compute_network.vpc.id
-  ip_cidr_range = "10.10.0.0/28"
-}
-
-

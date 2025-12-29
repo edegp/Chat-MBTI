@@ -30,7 +30,7 @@ class judge_and_make_report:
         load_dotenv(override=True)
         api_key = os.getenv("GEMINI_API_KEY")
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             temperature=1,
             max_tokens=2024,
             timeout=None,
@@ -49,15 +49,25 @@ class judge_and_make_report:
         )
 
     async def gemma_judge_async(self) -> Tuple[str, bool]:
-        # 2) 推論
-        raw = await self.model_manager.generate_async(self.build_gemma_prompt())
-
-        # 3) 後処理
-        cleaned = utils.remove_special_token(raw)
-        self.judge = cleaned
-        ok, err = utils.judge_response_follow_format(cleaned, self.true_labels)
-        if not ok:
-            logger.warning("%s: format error: %s", self.element_name, err)
+        try:
+            # 2) 推論
+            prompt = self.build_gemma_prompt()
+            logger.info(
+                f"[gemma_judge_async] Prompt: {prompt[:100]}..."
+            )  # ログにプロンプトの一部を出力
+            raw = await self.model_manager.generate_async(prompt)
+            logger.info(
+                f"[gemma_judge_async] Raw response: {raw[:100]}..."
+            )  # ログに生のレスポンスの一部を出力
+            # 3) 後処理
+            cleaned = utils.remove_special_token(raw)
+            self.judge = cleaned
+            ok, err = utils.judge_response_follow_format(cleaned, self.true_labels)
+            if not ok:
+                logger.warning("%s: format error: %s", self.element_name, err)
+        except Exception as e:
+            logger.error(f"[gemma_judge_async] Error during model inference: {e}")
+            return None, False
         return cleaned, ok
 
     async def gemma_judge(self, message_max_length=2000):
@@ -73,7 +83,8 @@ class judge_and_make_report:
         try:
             # モデル読み込み（既にロード済みなら即座に返す）
             if not await self.model_manager.load_model():
-                raise RuntimeError("Failed to load model")
+                logger.error(f"[gemma_judge] Model {self.model_name} failed to load.")
+                return None, False
 
             # 推論実行
             response = self.model_manager.generate(prompt)
@@ -168,9 +179,8 @@ class judge_and_make_report:
     ) -> tuple[str, str]:
         """レポート生成"""
 
-        prompt = utils.make_report_prompt(self.element_name, self.messages, judge)
-
         try:
+            prompt = utils.make_report_prompt(self.element_name, self.messages, judge)
             report = await self.llm.ainvoke(prompt)
             report = report.content
             judge_pattern = re.compile(r"(?<=\[judge\])([A-Za-z])")
