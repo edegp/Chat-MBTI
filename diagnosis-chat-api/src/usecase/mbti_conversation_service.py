@@ -730,9 +730,9 @@ class MBTIConversationService:
                     session_id = question[1]
                     if session_id not in session_messages:
                         session_messages[session_id] = [[], [], [], []]
-                    logger.debug(
-                        f"Processing question {question_id} for session {session_id}"
-                    )
+                    # logger.debug(
+                    #     f"Processing question {question_id} for session {session_id}"
+                    # )
                     answer = self.answer_repository.get_answer_by_question_id(
                         question_id
                     )

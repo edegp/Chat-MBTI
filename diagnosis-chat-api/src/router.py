@@ -11,6 +11,8 @@ import logging
 from typing import Optional
 from fastapi.responses import JSONResponse
 import httpx
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 
 # Import controller directly to avoid circular imports
 from src.controller.mbti_controller import (
@@ -346,14 +348,19 @@ class GenerateReport(BaseModel):
     element_id: int  # MBTI element id (1=energy, 2=..., 4=tactics)
 
 
-@router.get("/generate-report")
+class GenerateReportRequest(BaseModel):
+    element_id: int  # MBTI element id (1=energy, 2=..., 4=tactics)
+
+
+@router.post("/generate-report")
 async def proxy_generate_report(
-    element_id: int = Query(...),
+    request: GenerateReportRequest,
     controller: MBTIController = Depends(get_mbti_controller),
     current_user: dict = Depends(get_current_user),
 ):
     """Proxy endpoint to generate MBTI report"""
     user_id = current_user.get("uid")
+    element_id = request.element_id
     if not user_id:
         raise AuthenticationError("User ID not found in request messages")
     conversation_histories = await controller.get_conversation_histories(user_id)
@@ -366,19 +373,15 @@ async def proxy_generate_report(
             logger.warning(
                 f"No messages found for element {element_id} in session {session_id}, skipping report generation"
             )
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": f"No messages found for element {element_id} in session {session_id}"
-                },
-            )
+            continue
         messages.extend(conversation_histories[session_id][element_id - 1])
         logger.debug(f"Processing session {session_id} with {messages} messages")
 
     logger.debug(f"Generating report for user {user_id} with element {element_id}")
     # diagnosis-summary-api のURL（docker-composeならサービス名でOK）
+    SUMMARY_API_URL = os.getenv("SUMMARY_API_URL")
     summary_api_url = os.path.join(
-        os.getenv("SUMMARY_API_URL"),
+        SUMMARY_API_URL,
         "summary",
         "generate-report",
     )
@@ -387,11 +390,32 @@ async def proxy_generate_report(
         messages=messages[-20:],  # Use the latest 20 messages
         element_id=element_id - 1,
     )
-
-    # Send request to summary API
-    async with httpx.AsyncClient(timeout=420) as client:
-        response = await client.post(summary_api_url, json=request_data.dict())
-
+    token = id_token.fetch_id_token(Request(), SUMMARY_API_URL)
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                summary_api_url,
+                json=request_data.dict(),
+                headers=headers,
+                timeout=httpx.Timeout(1200.0, read=1200.0),
+            )
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout error while generating report: {e}")
+        raise HTTPException(status_code=500, detail="Request timed out")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error while generating report: {e}")
+        raise HTTPException(
+            status_code=response.status_code, detail="Failed to generate report"
+        )
+    except httpx.RequestError as e:
+        logger.error(f"Request error while generating report: {e}")
+        raise HTTPException(status_code=500, detail="Failed to connect to summary API")
+    except Exception as e:
+        logger.error(f"Unexpected error while generating report: {e}")
+        raise HTTPException(status_code=500, detail="Unexpected error occurred")
+    finally:
+        logging.debug(f"Response received: {response.status_code} {response.text} ")
     if response.status_code != 200:
         logger.error(
             f"Failed to generate report: {response.status_code} {response.text}"
@@ -419,6 +443,54 @@ async def proxy_generate_report(
         logger.error(f"Failed to save MBTI report: {e}")
 
     return JSONResponse(content=data, status_code=200)
+
+
+class StartUpRequest(BaseModel):
+    element_id: int  # MBTI element id (1=energy, 2=..., 4=tactics)
+
+
+@router.post("/summary-startup")
+async def proxy_summary_startup(
+    request: StartUpRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user.get("uid")
+    if not user_id:
+        raise AuthenticationError("User ID not found in authentication token")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            url = os.getenv("SUMMARY_API_URL") + "/summary/startup"
+
+            headers = {
+                "Authorization": f"Bearer {id_token.fetch_id_token(Request(), url)}"
+            }
+            logger.info(
+                f"Starting up summary API for element {request.element_id} for user {user_id}"
+            )
+            response = await client.post(
+                url,
+                json={
+                    "element_id": request.element_id - 1
+                },  # Adjust for 0-indexed element_id
+                timeout=900,
+                headers=headers,
+            )
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error during startup: {e}")
+            raise HTTPException(status_code=response.status_code, detail=str(e))
+        except httpx.RequestError as e:
+            logger.error(f"Request error during startup: {e}")
+            raise HTTPException(
+                status_code=500, detail="Failed to connect to summary API"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error during startup: {e}")
+            raise HTTPException(status_code=500, detail="Unexpected error occurred")
+    return JSONResponse(
+        content={"message": "Startup completed successfully"}, status_code=200
+    )
 
 
 # @router.get("/generate-reports")
