@@ -22,8 +22,6 @@ resource "google_project_service" "required_apis" {
     "cloudbuild.googleapis.com",
     "containerregistry.googleapis.com",
     "artifactregistry.googleapis.com",
-    "sqladmin.googleapis.com",
-    "servicenetworking.googleapis.com",
     "secretmanager.googleapis.com"
   ])
 
@@ -43,32 +41,4 @@ resource "google_artifact_registry_repository" "main" {
   depends_on = [google_project_service.required_apis]
 }
 
-# Create VPC network for private connectivity
-resource "google_compute_network" "vpc" {
-  name                    = "${var.diagnosis_chat.name}-vpc"
-  auto_create_subnetworks = false
-}
-
-resource "google_compute_subnetwork" "vpc_subnet" {
-  name          = "${var.diagnosis_chat.name}-subnet"
-  ip_cidr_range = var.diagnosis_chat.vpc.subnet_cidr
-  region        = var.region
-  network       = google_compute_network.vpc.id
-}
-
-# Allocate a global internal IP range for VPC peering (Service Networking)
-resource "google_compute_global_address" "private_ip_address" {
-  name          = "${var.diagnosis_chat.name}-private-ip"
-  purpose       = "VPC_PEERING"
-  address_type  = "INTERNAL"
-  prefix_length = 16
-  network       = google_compute_network.vpc.id
-}
-
-# Service Networking VPC peering for Cloud SQL private IP
-resource "google_service_networking_connection" "private_vpc_connection" {
-  network                 = google_compute_network.vpc.id
-  service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
-}
 
